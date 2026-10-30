@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L11 — String Algorithms &amp; Multi-Pattern Matching (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 11 · Sat 05 Dec 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 11<br>String Algorithms &amp;<br>Multi-Pattern Matching</h1>
+  <p>Deterministic automata vs. probabilistic fingerprints, and what changes when there are ten thousand patterns.</p>
+  <div class="meta">Saturday 5 December 2026 · 3 hours<br>PS3 due today · PS4 released next week</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem</h2>
+  <div class="cols">
+    <div class="small">
+      <p>A security team scans \(10^9\) characters of logs per day for any of \(5{,}000\) indicator strings (lengths 6–40).</p>
+      <ul>
+        <li>One pattern at a time with a good single-pattern algorithm: \(5000\) passes over \(10^9\) characters.</li>
+        <li>Compare hashes of windows with a hash set of pattern hashes? Fast, but <strong>what if two different strings have equal hashes?</strong></li>
+      </ul>
+    </div>
+    <div class="box warn small"><span class="label">Equal hashes ≠ equal strings</span>
+      <p>By pigeonhole, a hash with \(p\) values has collisions among \(p+1\) strings. Collisions are not only theoretical:</p>
+      <ul>
+        <li>Two different PDF files with the same SHA-1 hash were published in 2017 (the "SHAttered" attack).</li>
+        <li>Polynomial hashes modulo \(2^{64}\) with a fixed base are broken by Thue–Morse strings, a well-known competitive-programming trap.</li>
+      </ul>
+    </div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>One pattern</h1>
+  <p>Baseline · rolling hashes · Rabin–Karp · KMP</p>
+</section>
+
+<section class="slide">
+  <h2>The baseline: naive matching</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Try every shift \(s=0..n-m\) and compare characters until the first mismatch.</p>
+      <ul>
+        <li><strong>Worst case \(\Theta(nm)\):</strong> text \(a^n\), pattern \(a^{m-1}b\). Every shift compares \(m\) characters.</li>
+        <li><strong>Random text</strong> over an alphabet of size \(\sigma\): the expected comparisons per shift are \(\le\frac{1}{1-1/\sigma}\le2\). Expected \(O(n)\) for any fixed pattern.</li>
+        <li>It needs no preprocessing, no memory, and has a tight inner loop. Real libraries often use naive search or variants with skips (Boyer–Moore–Horspool).</li>
+      </ul>
+    </div>
+    <div class="box key small"><span class="label">Why a "bad" algorithm is a good baseline</span>It is correct by inspection, so it is the <strong>oracle</strong> for differential testing, and on natural text it is hard to beat. The value of the others lies in their <strong>guarantees</strong>: worst-case linear (KMP), and the ability to compare many things at once (hashing, automata).</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Polynomial rolling hashes</h2>
+  <div class="small">
+    <p>For a window \(x=x_0x_1\cdots x_{m-1}\) (characters as integers \(&lt;p\)), a prime \(p\) and a base \(b\in\{0,\dots,p-1\}\):</p>
+    \[h_b(x)=\Big(\sum_{i=0}^{m-1}x_i\,b^{m-1-i}\Big)\bmod p .\]
+    <p><strong>Rolling:</strong> sliding the window from \(T[s..s+m-1]\) to \(T[s+1..s+m]\):</p>
+    \[h\leftarrow\big((h-T[s]\,b^{m-1})\cdot b+T[s+m]\big)\bmod p\qquad O(1)\text{ per shift.}\]
+    <div class="cols">
+      <div class="box thm"><span class="label">Collision bound (idea)</span>Fix \(x\ne y\) of length \(m\) <strong>before</strong> choosing \(b\) uniformly at random. Then \(h_b(x)-h_b(y)\) is a nonzero polynomial in \(b\) of degree \(\le m-1\) over the field \(\mathbb Z_p\), so it has at most \(m-1\) roots: \(\Pr_b[\text{collision}]\le\frac{m-1}{p}\).</div>
+      <div class="box warn"><span class="label">Conditions that matter</span>
+        <ul>
+          <li>\(b\) must be random and chosen after the strings are fixed (an oblivious adversary).</li>
+          <li>\(p\) must be prime (a field). Working modulo \(2^{64}\) is not a field.</li>
+          <li>The bound is per comparison: use a union bound over all windows.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Rabin–Karp: Monte Carlo or Las Vegas</h2>
+  <div class="cols">
+    <div class="small">
+      <pre class="pseudo sm">RABIN-KARP(T, P)
+  choose b uniformly at random     ▷ after T and P are fixed
+  hp = h(P) ; ht = h(T[0..m−1])
+  for s = 0 to n − m
+      if ht == hp
+          if T[s..s+m−1] == P        ▷ verification
+              report s
+      roll ht to the next window</pre>
+    </div>
+    <table class="small">
+      <tr><th></th><th>Report on hash match</th><th>Verify each hash match</th></tr>
+      <tr><td>Type</td><td>Monte Carlo (false positives)</td><td>Las Vegas (always correct)</td></tr>
+      <tr><td>Time</td><td>\(O(n+m)\) worst case</td><td>expected \(O(n+m+\text{occ}\cdot m)\) + false hits × \(m\)</td></tr>
+      <tr><td>Worst case</td><td>\(O(n+m)\)</td><td>\(O(nm)\) (many true matches, e.g. \(a^n\) / \(a^m\))</td></tr>
+    </table>
+  </div>
+  <div class="box bad small"><span class="label">Legacy correction</span>The old code reported a match on hash equality and claimed "\(O(N+M)\)". That is a Monte Carlo algorithm presented as exact. If a false match is unacceptable, verify.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>KMP: the prefix function</h2>
+  <div class="cols">
+    <div class="small">
+      <p>A <strong>border</strong> of a string is a proper prefix that is also a suffix.</p>
+      <p>\(\pi[i]\) = the length of the longest border of \(P[0..i]\).</p>
+      <table class="tight grid">
+        <tr><th>\(i\)</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td></tr>
+        <tr><th>\(P\)</th><td>a</td><td>a</td><td>b</td><td>a</td><td>a</td><td>a</td><td>b</td></tr>
+        <tr><th>\(\pi\)</th><td>0</td><td>1</td><td>0</td><td>1</td><td>2</td><td>2</td><td>3</td></tr>
+      </table>
+      <p><strong>Key fact:</strong> the borders of \(P[0..i]\) are exactly \(\pi[i],\ \pi[\pi[i]-1],\dots\) (the <strong>border chain</strong>).</p>
+    </div>
+    <div class="stack small">
+      <pre class="pseudo sm">KMP-MATCH(T, P, π)
+  q = 0                       ▷ length of the current match
+  for each character c of T
+      while q &gt; 0 and P[q] ≠ c
+          q = π[q − 1]        ▷ fall back to the next border
+      if P[q] == c: q = q + 1
+      if q == m
+          report a match ; q = π[m − 1]</pre>
+      <div class="box defn"><span class="label">Invariant</span>After reading \(T[0..i]\), \(q\) = the length of the longest prefix of \(P\) that is a suffix of \(T[0..i]\).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>KMP matching is linear: a potential argument</h2>
+  <div class="small">
+    <div class="box thm"><span class="label">Claim</span>KMP-MATCH makes \(O(n)\) character comparisons on a text of length \(n\), whatever the text.</div>
+    <div class="box proof"><span class="label">Proof</span>Let \(\Phi=q\ge0\), with \(\Phi=0\) initially. Each text character increases \(q\) by at most 1 (the single <code>q = q + 1</code>). Each iteration of the while-loop decreases \(q\) strictly (\(\pi[q-1]&lt;q\)), and so does the reset after a match. The total decrease cannot exceed the total increase, which is \(\le n\). So there are \(\le n\) while-iterations in total, and the total work is \(O(n)\). (Amortized: \(\le2\) comparisons per text character.)</div>
+    <div class="cols">
+      <div class="box key"><span class="label">Deterministic guarantee</span>\(O(n+m)\) worst case for <em>every</em> input: no probability, no adversary model. It is a streaming algorithm (reads each character once) with \(O(m)\) memory.</div>
+      <div class="box plain">Computing \(\pi\) itself in \(O(m)\) uses the same kind of argument with a different potential. (Proof: PS4.)</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: single-pattern reasoning</h2>
+  <ol class="small">
+    <li>Compute \(\pi\) for \(P=\) <code>abcabcabd</code> and list the border chain of \(P[0..7]\).</li>
+    <li>Give a text on which KMP performs a long run of fallbacks on a <strong>single</strong> character. How long can it be for \(|P|=m\)?</li>
+    <li>Rabin–Karp with \(p=2^{31}-1\), \(m=50\), text \(n=10^9\): bound the probability of any false hit. Is that acceptable for an index used by a search engine? What would you change?</li>
+    <li>Show that computing \(\pi\) of the single string \(P\,\$\,T\) (with a separator \(\$\) occurring in neither) finds all occurrences of \(P\) in \(T\). Why is the separator needed?</li>
+  </ol>
+  <p class="small muted">Pairs · 8 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Many patterns</h1>
+  <p>Tries · Aho–Corasick · (optional) suffix arrays</p>
+</section>
+
+<section class="slide">
+  <h2>Tries: the starting point</h2>
+  <div class="cols">
+    <div class="small">
+      <ul>
+        <li>A rooted tree whose edges are labelled with characters. Each pattern is a root-to-node path, and terminal nodes are marked.</li>
+        <li>Insert/search a string of length \(\ell\): \(O(\ell)\) steps, independent of the number of stored strings.</li>
+        <li>Size: at most \(M+1\) nodes for patterns of total length \(M\), with shared prefixes stored once.</li>
+      </ul>
+      <table class="tight">
+        <tr><th>Children stored as</th><th>Step</th><th>Memory per node</th></tr>
+        <tr><td>array of size \(\sigma\)</td><td>\(O(1)\)</td><td>\(\sigma\) pointers</td></tr>
+        <tr><td>hash map</td><td>\(O(1)\) expected</td><td>\(O(\text{children})\), with overhead</td></tr>
+        <tr><td>sorted list / BST</td><td>\(O(\log\sigma)\)</td><td>\(O(\text{children})\)</td></tr>
+      </table>
+    </div>
+    <div class="box q small"><span class="label">Ask</span>To find occurrences of <em>any</em> of \(k\) patterns in a text, walk the trie from every text position. What does that cost? What is wasted when a walk fails?</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Aho–Corasick (1975): KMP on a trie</h2>
+  <div class="cols wide-r mid">
+    <div class="small">
+      <ul>
+        <li><strong>Failure link</strong> \(f(v)\): the node for the <strong>longest proper suffix</strong> of \(v\)'s string that is also in the trie. (For one pattern, this is exactly \(\pi\).)</li>
+        <li><strong>Output (dictionary) link:</strong> the nearest node on the failure chain that ends a pattern. It reports every pattern that ends here.</li>
+        <li><strong>Matching:</strong> read the text; follow a trie edge if one exists, otherwise follow failure links. Report outputs at each position.</li>
+      </ul>
+      <p class="xsmall">Example patterns: he, she, his, hers.</p>
+    </div>
+    <svg viewBox="0 0 520 320" width="500">
+      <defs><marker id="fa" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#a3262a"/></marker></defs>
+      <g font-size="14">
+        <g stroke="#46505e" stroke-width="2">
+          <line x1="260" y1="30" x2="120" y2="90"/><line x1="260" y1="30" x2="400" y2="90"/>
+          <line x1="120" y1="90" x2="80" y2="160"/><line x1="120" y1="90" x2="170" y2="160"/>
+          <line x1="80" y1="160" x2="80" y2="230"/><line x1="170" y1="160" x2="170" y2="230"/>
+          <line x1="400" y1="90" x2="400" y2="160"/><line x1="400" y1="160" x2="400" y2="230"/>
+          <line x1="80" y1="230" x2="80" y2="295"/>
+        </g>
+        <g fill="#fff" stroke="#172b45" stroke-width="2">
+          <circle cx="260" cy="30" r="16"/><circle cx="120" cy="90" r="16"/><circle cx="400" cy="90" r="16"/>
+          <circle cx="80" cy="160" r="16" fill="#e6eff8"/><circle cx="170" cy="160" r="16"/><circle cx="170" cy="230" r="16" fill="#e6eff8"/>
+          <circle cx="80" cy="230" r="16"/><circle cx="80" cy="295" r="16" fill="#e6eff8"/>
+          <circle cx="400" cy="160" r="16"/><circle cx="400" cy="230" r="16" fill="#e6eff8"/>
+        </g>
+        <g text-anchor="middle" font-size="12">
+          <text x="260" y="35">ε</text><text x="120" y="95">h</text><text x="400" y="95">s</text><text x="80" y="165">he</text>
+          <text x="170" y="165">hi</text><text x="170" y="235">his</text><text x="80" y="235">her</text><text x="80" y="300">hers</text>
+          <text x="400" y="165">sh</text><text x="400" y="235">she</text>
+        </g>
+        <path d="M384 230 Q 240 200 96 160" fill="none" stroke="#a3262a" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#fa)"/>
+        <path d="M384 160 Q 250 110 136 90" fill="none" stroke="#a3262a" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#fa)"/>
+        <path d="M186 230 Q 300 150 388 100" fill="none" stroke="#a3262a" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#fa)"/>
+        <text x="500" y="300" text-anchor="end" fill="#a3262a" font-size="13">- - - failure links (some)</text>
+        <text x="500" y="318" text-anchor="end" fill="#1f5f99" font-size="13">shaded = pattern ends</text>
+      </g>
+    </svg>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Aho–Corasick: construction, correctness, cost</h2>
+  <div class="cols">
+    <div class="small">
+      <pre class="pseudo sm">BUILD-FAILURE(trie)
+  f(root) = root ; children of root: f = root
+  BFS over nodes v (by depth)
+      for each child u = child(v, c)
+          x = f(v)
+          while x ≠ root and child(x, c) undefined
+              x = f(x)
+          f(u) = child(x, c) if defined (and ≠ u) else root
+          out(u) = f(u) if f(u) ends a pattern else out(f(u))</pre>
+      <p><strong>Why BFS:</strong> \(f(u)\) is shorter than \(u\), so it is already final when \(u\) is processed.</p>
+    </div>
+    <div class="stack small">
+      <div class="box defn"><span class="label">Invariant (matching)</span>After reading \(T[0..i]\), the current node is the <strong>longest suffix</strong> of \(T[0..i]\) that is a trie node. Every pattern ending at \(i\) is a suffix of it, and all of them lie on its output chain.</div>
+      <div class="box key"><span class="label">Complexity</span>Build \(O(M\sigma)\) with a full goto table (\(O(M)\) with maps); match \(O(n+\text{occ})\) with output links. <strong>Independent of \(k\)</strong>, apart from \(M\).</div>
+      <div class="box warn">\(\text{occ}\) can be huge: patterns \(a,aa,\dots,a^k\) in text \(a^n\) give \(\Theta(nk)\) matches. Output-sensitive, not linear.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Optional: indexing the text instead (suffix arrays)</h2>
+  <div class="cols">
+    <div class="small">
+      <p>When the <strong>text</strong> is fixed and patterns arrive later (a search index), preprocess the text instead of the patterns.</p>
+      <ul>
+        <li><strong>Suffix array</strong> SA: the starting positions of all suffixes, in sorted order. Build in \(O(n\log n)\) (prefix doubling) or \(O(n)\) (SA-IS).</li>
+        <li><strong>Search</strong> for \(P\): binary search over SA: \(O(m\log n)\) (\(O(m+\log n)\) with LCP information).</li>
+        <li><strong>LCP array</strong>: the longest common prefix of adjacent sorted suffixes, in \(O(n)\) (Kasai).</li>
+        <li>Example: the longest repeated substring = the maximum of LCP.</li>
+      </ul>
+    </div>
+    <table class="small">
+      <tr><th>Preprocess</th><th>Structure</th><th>Query</th></tr>
+      <tr><td>one pattern</td><td>\(\pi\) (KMP)</td><td>\(O(n)\) per text</td></tr>
+      <tr><td>many patterns</td><td>Aho–Corasick</td><td>\(O(n+\text{occ})\) per text</td></tr>
+      <tr><td>the text</td><td>suffix array + LCP</td><td>\(O(m\log n+\text{occ})\) per pattern</td></tr>
+      <tr><td>nothing</td><td>naive / Rabin–Karp</td><td>\(O(nm)\) / \(O(n+m)\) expected</td></tr>
+    </table>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: Aho–Corasick practice</h2>
+  <ol class="small">
+    <li>Build the trie and failure links for patterns {<code>a</code>, <code>ab</code>, <code>bab</code>, <code>bc</code>, <code>bca</code>, <code>c</code>, <code>caa</code>}. Which nodes have non-trivial output links?</li>
+    <li>Trace the automaton on the text <code>abccab</code> and list every reported (position, pattern).</li>
+    <li>Why can't we report only the pattern that ends at the current node? Give an example that shows why output links are needed.</li>
+  </ol>
+  <p class="small muted">Groups · 10 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Evidence and selection</h1>
+  <p>Guarantees vs. constants · one pattern vs. many</p>
+</section>
+
+<section class="slide">
+  <h2>Experiments: single and multiple patterns</h2>
+  <div class="cols">
+    <div>
+      <table class="tight">
+        <tr><th>Text \(n=3\times10^7\), \(m=1000\)</th><th class="num">naive</th><th class="num">KMP</th><th class="num">RK</th><th class="num">RK false hits</th></tr>
+        <tr><td>random, \(\sigma=26\)</td><td class="num">31</td><td class="num">25</td><td class="num">275</td><td class="num">0</td></tr>
+        <tr><td>random, \(\sigma=2\)</td><td class="num">138</td><td class="num">131</td><td class="num">266</td><td class="num">0</td></tr>
+        <tr class="hl"><td>\(a^n\) / \(a^{m-1}b\)</td><td class="num">10,516</td><td class="num">50</td><td class="num">269</td><td class="num">0</td></tr>
+      </table>
+      <table class="tight" style="margin-top:12px">
+        <tr><th>\(k\) patterns (length 8), \(n=10^7\)</th><th class="num">\(k\)×KMP</th><th class="num">Aho–Corasick</th><th class="num">AC states</th></tr>
+        <tr><td>1</td><td class="num">8</td><td class="num">22</td><td class="num">9</td></tr>
+        <tr><td>100</td><td class="num">818</td><td class="num">23</td><td class="num">718</td></tr>
+        <tr><td>1,000</td><td class="num">8,249</td><td class="num">44</td><td class="num">6,509</td></tr>
+        <tr class="hl"><td>10,000</td><td class="num">–</td><td class="num">96</td><td class="num">58,216</td></tr>
+      </table>
+      <p class="xsmall muted">ms; RK: random base, \(p=2^{61}-1\), every hash hit verified; <code>Student_Resources/strings_bench.cpp</code>, g++ 15.2 -O2.</p>
+    </div>
+    <div class="box q small"><span class="label">Interpret · 6 min</span>
+      <p>1. Naive beats RK on random text. Why, and what is RK's constant made of?</p>
+      <p>2. What guarantee does the adversarial row illustrate?</p>
+      <p>3. AC's time grows from 22 to 96 ms while \(k\) grows 10,000×. What explains the growth that does occur?</p>
+      <p>4. For \(k=1\), KMP beats AC. Why?</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: choose and justify</h2>
+  <ol class="small">
+    <li><strong>Plagiarism screening:</strong> report whether two 200-page documents share any passage of \(\ge50\) consecutive words.</li>
+    <li><strong>A genome browser:</strong> a fixed 3 GB reference genome; millions of short read queries (length 100) per day, exact matches only.</li>
+    <li><strong>An intrusion-detection sensor:</strong> 20,000 byte signatures; a 10 Gbit/s packet stream; a worst-case per-byte budget.</li>
+    <li><strong>A text editor's "find":</strong> one pattern typed by a user, in a 5 MB file.</li>
+  </ol>
+  <div class="box q small"><span class="label">Groups · 12 min</span>For each: the algorithm/index, its guarantee (deterministic? expected?), memory, and the one assumption that would change your choice.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>Naive is the correct baseline and oracle: expected fast on natural text, \(\Theta(nm)\) in the worst case.</li>
+      <li>Polynomial hashing with a <strong>random base modulo a prime</strong>: collision \(\le(m-1)/p\) per comparison; union bound over windows. <strong>Equal hashes never prove equal strings.</strong> Verify for Las Vegas.</li>
+      <li>KMP: the border chain + the invariant; linear by a potential argument; deterministic and streaming.</li>
+      <li>Aho–Corasick: KMP on a trie; \(O(n+M+\text{occ})\), independent of \(k\). Mind \(\text{occ}\) and memory.</li>
+      <li>Choose by what is fixed: the pattern (KMP), a pattern set (AC), or the text (suffix arrays).</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L12 (Sat 12 Dec)</span>
+      Network flow: residual graphs, augmenting paths, max-flow/min-cut, Edmonds–Karp and Dinic, bipartite matching, and the skill of <strong>modelling problems as flow</strong>.
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> KT 7.1–7.6; CLRS 4e Ch. 24. <strong>PS4</strong> released next week; <strong>M5</strong> (preliminary results) due Sat 12 Dec.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

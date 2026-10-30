@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L14 — Approximation Algorithms, Algorithmic Trade-offs &amp; Course Synthesis (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 14 · Sat 26 Dec 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 14<br>Approximation Algorithms,<br>Algorithmic Trade-offs &amp; Course Synthesis</h1>
+  <p>When exact is out of reach: guarantees you can prove, heuristics you can measure, and how to decide.</p>
+  <div class="meta">Saturday 26 December 2026 · 3 hours<br>PS4 due today · Presentations + vivas in separate slots (timetable announced)</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem: the deadline is Monday</h2>
+  <div class="cols">
+    <div class="small">
+      <p>A telecom operator must place monitoring probes on routers so that <strong>every link is watched by a probe at one of its ends</strong>. That is vertex cover on 50,000 routers and 300,000 links.</p>
+      <ul>
+        <li>L13: the problem is NP-hard. The exact search trees are exponential in the cover size (thousands).</li>
+        <li>Management: "Give us a plan by Monday, and tell us how far from the best possible it could be."</li>
+      </ul>
+    </div>
+    <div class="box q small"><span class="label">Discuss · 3 min</span>What kind of answer can you honestly give? Is "our heuristic usually works well" acceptable? What would a <strong>guarantee</strong> look like?</div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>Approximation guarantees</h1>
+  <p>Ratios · vertex cover · set cover · limits</p>
+</section>
+
+<section class="slide">
+  <h2>Approximation ratio; guarantee vs. heuristic</h2>
+  <div class="cols">
+    <div class="small">
+      <div class="box defn"><span class="label">Definition</span>A polynomial-time algorithm \(A\) is a <strong>\(\rho\)-approximation</strong> (\(\rho\ge1\)) if for <strong>every</strong> instance \(I\):
+        <ul>
+          <li>minimisation: \(A(I)\le\rho\cdot\mathrm{OPT}(I)\);</li>
+          <li>maximisation: \(A(I)\ge\mathrm{OPT}(I)/\rho\).</li>
+        </ul></div>
+      <p>The proof pattern: find a quantity \(L(I)\) that the algorithm can compute with \(L(I)\le\mathrm{OPT}(I)\) (a <strong>lower bound</strong>), and show \(A(I)\le\rho\,L(I)\).</p>
+    </div>
+    <table class="small">
+      <tr><th></th><th>Approximation algorithm</th><th>Heuristic</th></tr>
+      <tr><td>Quality</td><td>proved for every input</td><td>measured on some inputs</td></tr>
+      <tr><td>Typical result</td><td>often much better than \(\rho\)</td><td>often excellent</td></tr>
+      <tr><td>Adversarial inputs</td><td>still within \(\rho\)</td><td>can be arbitrarily bad</td></tr>
+      <tr><td>Evidence</td><td>a theorem</td><td>experiments (and their threats to validity)</td></tr>
+    </table>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Vertex cover: two 2-approximations</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>1 · Maximal matching</h3>
+      <p>Repeatedly take an uncovered edge and add <strong>both</strong> endpoints.</p>
+      <p><strong>Lower bound:</strong> the chosen edges form a matching \(M\); any cover needs a distinct endpoint of each, so \(\mathrm{OPT}\ge|M|\). The output has \(2|M|\le2\,\mathrm{OPT}\) vertices.</p>
+      <p><strong>Tight:</strong> a perfect matching graph gives \(2n\) vs. \(n\).</p>
+    </div>
+    <div class="small">
+      <h3>2 · LP rounding (weighted)</h3>
+      <p>Solve the LP relaxation: minimise \(\sum w_vx_v\) subject to \(x_u+x_v\ge1\) for every edge and \(0\le x\le1\). Output \(C=\{v: x_v\ge\frac12\}\).</p>
+      <ul>
+        <li>A cover: each edge has an endpoint with \(x\ge\frac12\).</li>
+        <li>\(w(C)\le\sum_{v\in C}w_v\cdot2x_v\le2\,\mathrm{LP}\le2\,\mathrm{OPT}\) (the LP is a relaxation, so \(\mathrm{LP}\le\mathrm{OPT}\)).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="box warn small">Better than 2? Not known. It is NP-hard to do better than \(\sqrt2\approx1.414\) (Khot–Minzer–Safra 2017), and under the Unique Games Conjecture, factor \(2-\varepsilon\) is impossible.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Greedy set cover: an \(H_n\)-approximation</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Universe \(U\) (\(|U|=n\)), sets \(S_1..S_t\). Greedy: repeatedly pick the set covering the <strong>most uncovered</strong> elements.</p>
+      <div class="box thm"><span class="label">Theorem</span>Greedy uses \(\le H_n\cdot\mathrm{OPT}\) sets, where \(H_n=\sum_{i=1}^n\frac1i\le\ln n+1\).</div>
+      <div class="box proof"><span class="label">Proof (pricing)</span>When greedy picks a set covering \(c\) new elements, charge each of them \(\frac1c\). The total charge = the number of greedy sets. Fix an optimal set \(S^\ast\) and list its elements in the order greedy covers them: \(e_1,\dots,e_d\). When \(e_j\) is covered, at least \(d-j+1\) elements of \(S^\ast\) are still uncovered, so greedy's choice covers \(\ge d-j+1\) new elements and \(e_j\) pays \(\le\frac{1}{d-j+1}\). So \(S^\ast\)'s elements pay \(\le H_d\le H_n\). Summing over the OPT sets, which cover everything, gives greedy \(\le H_n\cdot\mathrm{OPT}\).</div>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">Can we do better?</span>No, essentially: approximating set cover within \((1-\varepsilon)\ln n\) is NP-hard (Feige 1998; Dinur–Steurer 2014). Greedy is essentially optimal among polynomial algorithms.</div>
+      <div class="box plain"><span class="label">Tightness</span>There are instances where greedy is \(\Theta(\log n)\) times optimal: two disjoint "row" sets cover everything, while greedy picks a sequence of "column" sets of sizes \(2^{k-1},\dots,2,1\).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: guarantees</h2>
+  <ol class="small">
+    <li>Show that the maximal-matching algorithm is <strong>not</strong> a 2-approximation for <em>weighted</em> vertex cover. Why does LP rounding still work?</li>
+    <li><strong>Max-coverage:</strong> choose \(k\) sets to cover as many elements as possible. Greedy (\(k\) steps) achieves \(\ge(1-1/e)\,\mathrm{OPT}\). Explain in words why each greedy step closes at least a \(1/k\) fraction of the remaining gap to OPT, and why that gives \(1-(1-1/k)^k\ge1-1/e\).</li>
+    <li>A heuristic returned covers of size 102 on 50 benchmark graphs whose optimum is known to be 100. A colleague claims it is a "1.02-approximation". What is wrong with the claim?</li>
+  </ol>
+  <p class="small muted">Pairs · 8 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>TSP, schemes, and heuristics</h1>
+  <p>Metric TSP · impossibility · FPTAS · local search</p>
+</section>
+
+<section class="slide">
+  <h2>Metric TSP: the double-tree 2-approximation</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>Metric:</strong> \(d(u,w)\le d(u,v)+d(v,w)\) (the triangle inequality).</p>
+      <ol>
+        <li>Compute an MST \(T\) (L09).</li>
+        <li>Walk around \(T\) (a DFS preorder), visiting each vertex the first time it is seen, i.e. <strong>shortcut</strong> repeated vertices.</li>
+      </ol>
+      <div class="box proof"><span class="label">Proof</span>
+        <ul>
+          <li><strong>Lower bound:</strong> removing one edge from an optimal tour gives a spanning tree, so \(w(T)\le\mathrm{OPT}\).</li>
+          <li>The full walk traverses each tree edge twice: cost \(2w(T)\).</li>
+          <li>Shortcutting never increases the cost (triangle inequality).</li>
+          <li>So the tour costs \(\le2w(T)\le2\,\mathrm{OPT}\).</li>
+        </ul>
+      </div>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">Christofides (1976)</span>MST + a minimum-weight perfect matching on the odd-degree vertices + an Euler tour + shortcuts: a <strong>1.5</strong>-approximation. (Recently improved to \(1.5-10^{-36}\): Karlin, Klein, Oveis Gharan 2021.)</div>
+      <div class="box bad"><span class="label">No triangle inequality: no approximation</span>For every constant \(\rho\), a \(\rho\)-approximation for general TSP would decide Hamiltonian cycle (L13 exercise B2: weight 1 on edges, \(\rho n+1\) on non-edges). So none exists unless P = NP.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Approximation schemes: the knapsack FPTAS</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Recall L07: the value-indexed DP runs in \(O(n\cdot\sum v_i)\). Values are the problem, so scale them down.</p>
+      <ol>
+        <li>Let \(v_{\max}\) be the largest value (items heavier than \(W\) removed), and \(K=\varepsilon v_{\max}/n\).</li>
+        <li>Rounded values \(v'_i=\lfloor v_i/K\rfloor\) (at most \(n/\varepsilon\)).</li>
+        <li>Solve exactly with the value DP on \(v'\): \(O(n\cdot n\cdot n/\varepsilon)=O(n^3/\varepsilon)\).</li>
+      </ol>
+      <div class="box proof"><span class="label">Guarantee</span>Rounding loses \(&lt;K\) per item, so \(&lt;nK=\varepsilon v_{\max}\le\varepsilon\,\mathrm{OPT}\) in total. The solution found has value \(\ge(1-\varepsilon)\mathrm{OPT}\).</div>
+    </div>
+    <div class="box key small"><span class="label">Why this is possible for knapsack but not for TSP</span>
+      <p>Knapsack is only <strong>weakly</strong> NP-hard: its hardness lives in the large numbers, and rounding removes them at a controlled cost.</p>
+      <p>Strongly NP-hard problems have no FPTAS (unless P = NP). The L07/L13 distinction pays off here.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Heuristics and local search</h2>
+  <div class="cols">
+    <div class="small">
+      <ul>
+        <li><strong>Constructive heuristics:</strong> nearest neighbour (TSP), greedy by density (knapsack), and so on. Fast, and no (constant) guarantee.</li>
+        <li><strong>Local search:</strong> start from a solution; apply improving moves until none exists (a <em>local optimum</em>). TSP 2-opt: replace edges \((a,b),(c,d)\) by \((a,c),(b,d)\) if that is shorter.</li>
+        <li><strong>Metaheuristics:</strong> simulated annealing, tabu search, genetic algorithms. Escape local optima; tuned empirically.</li>
+        <li><strong>Randomisation:</strong> random restarts, randomized rounding of LPs (which sometimes <em>does</em> give guarantees).</li>
+      </ul>
+    </div>
+    <div class="box warn small"><span class="label">What local search guarantees</span>
+      <p>Only local optimality with respect to the moves. 2-opt on metric TSP has worst-case ratio \(\Theta(\log n/\log\log n)\), and it can take exponentially many steps in the worst case.</p>
+      <p>Yet on real and random instances 2-opt is often within a few percent of optimal. That is an empirical fact to be <strong>measured</strong>, with the input family stated.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Experiment: guarantee vs. observed quality (Euclidean TSP)</h2>
+  <div class="cols">
+    <div>
+      <table class="tight">
+        <tr><th colspan="4">\(n=12\) random points, 100 instances: ratio to the exact optimum (Held–Karp)</th></tr>
+        <tr><th>Algorithm</th><th class="num">mean</th><th class="num">worst</th><th>guarantee</th></tr>
+        <tr><td>Double tree (MST)</td><td class="num">1.205</td><td class="num">1.418</td><td>2</td></tr>
+        <tr><td>Nearest neighbour</td><td class="num">1.117</td><td class="num">1.537</td><td>none (constant)</td></tr>
+        <tr class="hl"><td>NN + 2-opt</td><td class="num">1.009</td><td class="num">1.105</td><td>heuristic</td></tr>
+      </table>
+      <table class="tight" style="margin-top:12px">
+        <tr><th colspan="3">\(n=1000\): tour length / MST weight (an upper bound on the ratio to OPT)</th></tr>
+        <tr><td>Double tree</td><td class="num">1.566</td><td></td></tr>
+        <tr><td>Nearest neighbour</td><td class="num">1.393</td><td></td></tr>
+        <tr class="hl"><td>NN + 2-opt</td><td class="num">1.196</td><td></td></tr>
+      </table>
+      <p class="xsmall muted"><code>Student_Resources/tsp_approx_bench.cpp</code>, g++ 15.2 -O2.</p>
+    </div>
+    <div class="box q small"><span class="label">Interpret · 5 min</span>
+      <p>1. The algorithm <em>with</em> a guarantee is the worst in practice. Contradiction?</p>
+      <p>2. Why does the table for \(n=1000\) use the MST, and what does that make the numbers?</p>
+      <p>3. What would you ship, and what would you report alongside it?</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: design with guarantees</h2>
+  <ol class="small">
+    <li>Show that the double-tree algorithm's factor 2 is essentially tight: describe a metric instance where the shortcut tour costs close to \(2\,\mathrm{OPT}\).</li>
+    <li><strong>\(k\)-center:</strong> choose \(k\) facilities among \(n\) points (metric) to minimise the maximum distance of any point to its nearest facility. Farthest-first traversal (repeatedly add the point farthest from the chosen ones) is a 2-approximation. Sketch why. (Hint: the \(k+1\) points chosen so far are pairwise far apart.)</li>
+    <li>For the knapsack FPTAS with \(n=1000\) and \(\varepsilon=0.01\): estimate the DP table size. Is it practical? What would you do instead?</li>
+  </ol>
+  <p class="small muted">Groups · 8 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Trade-offs and course synthesis</h1>
+  <p>Responses to hardness · a decision procedure for new problems</p>
+</section>
+
+<section class="slide">
+  <h2>Responding to an NP-hard problem: the menu</h2>
+  <table class="small">
+    <tr><th>Response</th><th>Guarantee</th><th>Cost</th><th>When it fits</th><th>CS612</th></tr>
+    <tr><td>Exact exponential (DP over subsets, search trees)</td><td>optimal</td><td>\(c^n\) or \(c^k\)</td><td>small \(n\), or a small parameter \(k\)</td><td>L13</td></tr>
+    <tr><td>Branch-and-bound / ILP solvers</td><td>optimal (if it finishes)</td><td>unpredictable; exponential in the worst case</td><td>structured instances, good bounds</td><td>L13</td></tr>
+    <tr><td>Pseudo-polynomial DP</td><td>optimal</td><td>poly(\(n\), numbers)</td><td>weakly NP-hard, small numbers</td><td>L07</td></tr>
+    <tr><td>Special structure</td><td>optimal</td><td>polynomial</td><td>trees, bipartite, planar, intervals, …</td><td>L08–L12</td></tr>
+    <tr><td>Approximation algorithms / schemes</td><td>within \(\rho\) (or \(1\pm\varepsilon\))</td><td>polynomial</td><td>a provable bound is needed</td><td>L14</td></tr>
+    <tr><td>Heuristics / local search / metaheuristics</td><td>none (measured)</td><td>tunable</td><td>quality matters, guarantees don't</td><td>L14</td></tr>
+    <tr><td>Randomised algorithms</td><td>expected / w.h.p.</td><td>polynomial</td><td>sampling, rounding, restarts</td><td>L03</td></tr>
+  </table>
+  
+</section>
+
+<section class="slide">
+  <h2>Course synthesis: facing a new computational problem</h2>
+  <div class="cols wide-l">
+    <ol class="xsmall">
+      <li><strong>Model:</strong> input, output, input size (bits!), cost model. What is fixed, and what varies (L01, L07)?</li>
+      <li><strong>Assumptions:</strong> weights, adversary, distributions, static vs. dynamic, sparse vs. dense, metric, small parameters (L04, L10).</li>
+      <li><strong>Paradigm:</strong> D&amp;C (L02), randomization (L03), augmentation / amortization (L05), DP state design (L06–L07), greedy/matroid (L08), graphs and flow (L09–L12), strings (L11).</li>
+      <li><strong>Correctness:</strong> invariants, induction, exchange, cut/cycle, reductions (L01, L08, L13).</li>
+      <li><strong>Complexity:</strong> worst/expected/amortized/w.h.p./approximate, and the lower bound (L01–L05, L09).</li>
+      <li><strong>Hardness:</strong> is an exact efficient algorithm plausible? Weak or strong (L07, L13)?</li>
+      <li><strong>Alternatives:</strong> when does each one win?</li>
+      <li><strong>Evidence:</strong> hypotheses first; controlled inputs that stress the assumptions; spread; threats to validity (the project).</li>
+    </ol>
+    <div class="box key small"><span class="label">The recurring lesson</span>
+      <p>A result is a <strong>claim + its guarantee type + its assumptions + its evidence</strong>.</p>
+      <p>"Dijkstra is \(O(m\log n)\)" is incomplete. "Dijkstra with a binary heap is \(O((n+m)\log n)\) worst case for non-negative weights, and on sparse random graphs it beat Bellman–Ford only by a constant, because of early termination" is an MSc answer.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: the whole procedure on one problem</h2>
+  <div class="small">
+    <p><strong>Problem.</strong> A city places electric-vehicle chargers at intersections. Every road segment must have a charger within distance \(D\) of both its endpoints, installation costs differ by site, and the budget is fixed. Planners want the cheapest plan, and they want to know how good it is.</p>
+    <ol>
+      <li>Model it. Which classic problem(s) does it resemble? (Think about L13–L14.)</li>
+      <li>What is the input size? Which assumptions matter (metric distances? planar road network?)</li>
+      <li>Is an exact efficient algorithm plausible? Argue by a reduction sketch.</li>
+      <li>Propose two responses from the menu, with their guarantees.</li>
+      <li>Design one experiment to compare them, with a hypothesis and what would refute it.</li>
+    </ol>
+  </div>
+  <p class="small muted">Groups · 15 min, then 2–3 groups present (5 min)</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Close: the final exam and beyond</h2>
+  <div class="cols small">
+    <div>
+      <h3>Final exam (60 marks, written, no MCQ)</h3>
+      <ul>
+        <li>A: short analytical reasoning (10) · B: design + correctness proof (14) · C: analysis (10) · D: a graph/string scenario (12) · E: NP-completeness, reductions, approximation (14)</li>
+        <li>Pseudocode, not code. Every bound with its type. Every reduction with its direction and both implications.</li>
+        <li>Prepare with the in-class exercises, PS1–PS4, and one page per lecture: the algorithm, its guarantee, its assumption, and the alternative.</li>
+      </ul>
+    </div>
+    <div class="box key">
+      <span class="label">Where this leads</span>
+      <ul>
+        <li>Randomized and online algorithms, streaming and sketching</li>
+        <li>Parameterised and fine-grained complexity</li>
+        <li>LP/SDP-based approximation, hardness of approximation</li>
+        <li>Algorithm engineering: making theory fast in practice</li>
+      </ul>
+      <p style="margin-top:8px">Thank you. Good luck with the vivas and the final.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

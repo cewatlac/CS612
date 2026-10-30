@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L12 — Network Flow, Min-Cut &amp; Matching (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 12 · Sat 12 Dec 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 12<br>Network Flow, Min-Cut &amp; Matching</h1>
+  <p>One algorithmic idea that solves a surprising number of problems, once you learn to recognise them.</p>
+  <div class="meta">Saturday 12 December 2026 · 3 hours<br>PS4 released today (due Sat 26 Dec) · Project M5 (preliminary results) due today</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problems</h2>
+  <div class="cols c3 small">
+    <div class="card"><h3>Throughput</h3><p>A delivery network with road capacities (trucks/hour). How many trucks per hour can reach the port? <em>Which roads are the bottleneck?</em></p></div>
+    <div class="card"><h3>Assignment</h3><p>300 interns, 120 projects; each intern is acceptable to some projects, and each project takes a limited number of interns. <em>Can everyone be placed?</em></p></div>
+    <div class="card"><h3>Impossibility</h3><p>A sports league mid-season: can team X still finish first? <em>If not, can we give a short, checkable reason?</em></p></div>
+  </div>
+  <div class="box q small"><span class="label">Discuss · 3 min</span>What do these three problems have in common? What would a "certificate" that the answer is optimal (or impossible) look like?</div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>Max-flow and min-cut</h1>
+  <p>Definitions · residual graphs · Ford–Fulkerson · the theorem · Edmonds–Karp · Dinic</p>
+</section>
+
+<section class="slide">
+  <h2>Flow networks, cuts, weak duality</h2>
+  <div class="cols">
+    <div class="small">
+      <p>A directed graph with capacities \(c(u,v)\ge0\), a source \(s\) and a sink \(t\). A <strong>flow</strong> \(f\) satisfies</p>
+      <ul>
+        <li><strong>capacity:</strong> \(0\le f(u,v)\le c(u,v)\);</li>
+        <li><strong>conservation:</strong> inflow = outflow at every \(v\ne s,t\).</li>
+      </ul>
+      <p>Value \(|f|\) = the net flow out of \(s\).</p>
+      <p>An <strong>\(s\)–\(t\) cut</strong> \((S,T)\): \(s\in S\), \(t\in T\). Its capacity \(c(S,T)=\sum_{u\in S,v\in T}c(u,v)\) counts only forward edges.</p>
+    </div>
+    <div class="stack small">
+      <div class="box thm"><span class="label">Lemma (flow across any cut)</span>For every flow \(f\) and every cut \((S,T)\): \(|f|=f(S,T)-f(T,S)\le c(S,T)\).</div>
+      <div class="box proof"><span class="label">Proof</span>Sum conservation over the vertices of \(S\): the net flow out of \(S\) equals the net flow out of \(s\), which is \(|f|\). The net flow out of \(S\) is \(f(S,T)-f(T,S)\le c(S,T)-0\).</div>
+      <div class="box key">So every cut is an <strong>upper bound</strong> on every flow: max-flow ≤ min-cut. The theorem says they are equal.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Residual graphs and augmenting paths</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Residual graph \(G_f\): for each edge \((u,v)\),</p>
+      <ul>
+        <li>a forward residual edge with capacity \(c(u,v)-f(u,v)\) (room to push more);</li>
+        <li>a backward residual edge \((v,u)\) with capacity \(f(u,v)\) (the ability to <strong>undo</strong> flow).</li>
+      </ul>
+      <p>An <strong>augmenting path</strong> is an \(s\)–\(t\) path in \(G_f\). Pushing its bottleneck \(\Delta\) along it keeps capacity and conservation, and increases \(|f|\) by \(\Delta\).</p>
+    </div>
+    <div class="box warn small"><span class="label">Why backward edges are essential</span>
+      <p>Greedy "push along any path with spare capacity, never undo" can get stuck below the optimum: an early path may use an edge that two later paths needed.</p>
+      <p>The backward residual edge lets a later augmentation <strong>reroute</strong> flow. That is what makes the method complete.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Ford–Fulkerson and the max-flow/min-cut theorem</h2>
+  <div class="small">
+    <pre class="pseudo sm">FORD-FULKERSON(G, s, t)
+  f = 0
+  while G_f has an s–t path P:  augment f along P by its bottleneck
+  return f</pre>
+    <div class="box thm"><span class="label">Theorem (Ford &amp; Fulkerson 1956)</span>The following are equivalent: (1) \(f\) is a maximum flow; (2) \(G_f\) has no augmenting path; (3) \(|f|=c(S,T)\) for some cut \((S,T)\). In particular, <strong>max-flow = min-cut</strong>.</div>
+    <div class="box proof"><span class="label">Proof</span>(1)⇒(2): an augmenting path would increase \(|f|\). (3)⇒(1): weak duality. (2)⇒(3): let \(S\) = the vertices reachable from \(s\) in \(G_f\), so \(t\notin S\). Every edge \(S\to T\) is <strong>saturated</strong> (otherwise its head would be reachable). Every edge \(T\to S\) carries <strong>zero</strong> flow (otherwise its backward residual edge would make its tail reachable). So \(|f|=f(S,T)-f(T,S)=c(S,T)\).</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Choosing the augmenting path: Edmonds–Karp and Dinic</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>Edmonds–Karp (1972): shortest augmenting path (BFS)</h3>
+      <ul>
+        <li><strong>Lemma:</strong> the BFS distance \(d_f(s,v)\) never decreases across augmentations.</li>
+        <li>Each edge becomes the bottleneck ("critical") at most \(O(n)\) times: between two consecutive times, the distance of its tail grows by \(\ge2\).</li>
+        <li>So there are \(O(nm)\) augmentations, each \(O(m)\): <strong>\(O(nm^2)\)</strong>, independent of the capacities (polynomial).</li>
+      </ul>
+    </div>
+    <div class="small">
+      <h3>Dinic (1970): blocking flows in the level graph</h3>
+      <ul>
+        <li>Build the BFS <em>level graph</em> (edges from level \(i\) to \(i+1\)).</li>
+        <li>Find a <strong>blocking flow</strong> in it (DFS with current-arc pointers), then rebuild.</li>
+        <li>The \(s\)–\(t\) distance increases every phase: \(\le n\) phases, \(O(nm)\) each: <strong>\(O(n^2m)\)</strong>.</li>
+        <li>Unit-capacity bipartite graphs: \(O(m\sqrt n)\) (= Hopcroft–Karp).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="box key small">The generic method is correct with <em>any</em> augmenting path. <strong>Which</strong> path is chosen decides whether the running time depends on the capacity values (pseudo-polynomial) or only on \(n\) and \(m\) (polynomial).</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: by hand</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Network: \(s\to a\) (10), \(s\to b\) (5), \(a\to b\) (15), \(a\to c\) (4), \(b\to d\) (8), \(c\to t\) (10), \(d\to c\) (6), \(d\to t\) (5).</p>
+      <ol>
+        <li>Run Edmonds–Karp. Show each augmenting path and its bottleneck.</li>
+        <li>Give the final residual graph's reachable set \(S\) and the minimum cut. Check that its capacity equals the flow.</li>
+        <li>Which single edge would you upgrade (+5 capacity) to increase the throughput the most? Justify with the cut.</li>
+      </ol>
+    </div>
+    <div class="box q small"><span class="label">Pairs · 10 min</span>Then: if every capacity is multiplied by 1000, how many augmentations do FF (with an unlucky path rule) and Edmonds–Karp need?</div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Modelling with flow</h1>
+  <p>Matching · the toolkit · project selection · elimination</p>
+</section>
+
+<section class="slide">
+  <h2>Bipartite matching as flow</h2>
+  <div class="cols">
+    <div class="small">
+      <p>A bipartite graph \((L\cup R,E)\). Build: \(s\to\ell\) (capacity 1) for \(\ell\in L\); \(\ell\to r\) (capacity 1) for \((\ell,r)\in E\); \(r\to t\) (capacity 1).</p>
+      <div class="box thm"><span class="label">Claim</span>Maximum matching size = maximum flow value.</div>
+      <div class="box proof"><span class="label">Proof (both directions)</span>(≤) A matching \(M\) gives a flow of value \(|M|\): one unit along \(s\to\ell\to r\to t\) for each matched pair; capacities hold because the pairs are disjoint. (≥) By integrality there is an integral maximum flow, so each edge carries 0 or 1. Unit capacity into each \(\ell\) and out of each \(r\) means each vertex is used at most once, so the middle edges with flow 1 form a matching of the same size.</div>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">König's theorem (a corollary)</span>In a bipartite graph, <strong>max matching = min vertex cover</strong>. A minimum cut (with capacities \(\infty\) on the middle edges) corresponds to a vertex cover: \(L\setminus S\) plus \(R\cap S\).</div>
+      <div class="box warn">In <strong>general</strong> graphs, maximum matching is still polynomial (Edmonds' blossom algorithm), but not via this simple flow model. And minimum vertex cover becomes NP-hard (L13).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>The modelling toolkit</h2>
+  <table class="small">
+    <tr><th>Feature of the problem</th><th>Construction</th></tr>
+    <tr><td>Several sources / sinks</td><td>a super-source \(s^\ast\to s_i\) (capacity = the supply of \(s_i\), or \(\infty\)); likewise a super-sink</td></tr>
+    <tr><td>Capacity on a <strong>vertex</strong></td><td>split \(v\) into \(v_{in}\to v_{out}\) with that capacity; incoming edges go to \(v_{in}\), outgoing edges leave \(v_{out}\)</td></tr>
+    <tr><td>Undirected edge of capacity \(c\)</td><td>two directed edges \(u\to v\), \(v\to u\), each of capacity \(c\)</td></tr>
+    <tr><td>"Each item used at most \(k\) times"</td><td>capacity \(k\) on the item's source or sink edge</td></tr>
+    <tr><td>"Must never be separated" / a hard constraint</td><td>an edge of capacity \(\infty\) (it can never be in a finite cut)</td></tr>
+    <tr><td>Lower bounds / demands</td><td>circulation with demands (KT 7.7): reduce to plain max-flow</td></tr>
+    <tr><td>Costs per unit of flow</td><td>min-cost flow (successive shortest paths with potentials: L10)</td></tr>
+  </table>
+  
+</section>
+
+<section class="slide">
+  <h2>Min-cut as an optimisation tool: project selection</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Projects with profits \(p_i\) (possibly negative = cost). Prerequisites: choosing \(i\) requires choosing \(j\). Maximise the total profit of a prerequisite-closed set.</p>
+      <p><strong>Network:</strong> \(s\to i\) with capacity \(p_i\) if \(p_i&gt;0\); \(i\to t\) with capacity \(-p_i\) if \(p_i&lt;0\); \(i\to j\) with capacity \(\infty\) for each prerequisite.</p>
+      <p><strong>Claim:</strong> for a minimum cut \((S,T)\), the projects in \(S\setminus\{s\}\) are an optimal selection, with profit \(=\sum_{p_i&gt;0}p_i-c(S,T)\).</p>
+    </div>
+    <div class="box proof small"><span class="label">Why</span>
+      <p>A finite cut cannot cut an \(\infty\) edge, so \(S\) is closed under prerequisites. Any closed set \(A\) gives a finite cut \((\{s\}\cup A,\ \text{rest})\).</p>
+      <p>Its capacity = (the profits of positive projects <strong>not</strong> chosen) + (the costs of negative projects chosen) = \(\sum_{p_i&gt;0}p_i-\text{profit}(A)\).</p>
+      <p>So minimising the cut maximises the profit. A bijection between closed sets and finite cuts.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Certificates of impossibility: baseball elimination</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Team \(x\) has \(w_x\) wins and \(r_x\) games left. Assume \(x\) wins all of them: \(W=w_x+r_x\). Is there an outcome of the remaining games among the <em>other</em> teams in which no team exceeds \(W\)?</p>
+      <p><strong>Network:</strong> \(s\to\) (game node \(\{i,j\}\)) with capacity = the number of games left between \(i\) and \(j\); game \(\to i\) and game \(\to j\) with \(\infty\); \(i\to t\) with capacity \(W-w_i\).</p>
+      <p>\(x\) can still win iff the max flow saturates all game edges.</p>
+    </div>
+    <div class="box key small"><span class="label">The certificate</span>If \(x\) is eliminated, the min cut yields a set \(T'\) of teams with
+      \[\frac{w(T')+g(T')}{|T'|}&gt;W,\]
+      where \(g(T')\) is the number of games left among them: their <strong>average</strong> number of wins must exceed \(W\), so some team exceeds it. A one-line proof that anyone can check, found by the algorithm.</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: model it (and prove both directions)</h2>
+  <ol class="small">
+    <li><strong>Dinner seating.</strong> Families \(i\) of size \(a_i\), tables \(j\) with \(b_j\) seats. No two members of the same family may sit at the same table. Is a seating possible?</li>
+    <li><strong>Tutoring.</strong> Students need tutoring in subjects; tutors can teach some subjects and have at most \(k_t\) hours. Each student needs one hour per requested subject, possibly from different tutors. Maximise the number of hours scheduled.</li>
+    <li><strong>Evacuation.</strong> A building graph with corridor capacities (people/min) and staircase <em>node</em> capacities; several exits. Maximum evacuation rate?</li>
+  </ol>
+  <p class="small muted">Groups · 12 min · for each: the network, and one sentence per direction of the correspondence</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Evidence and recognition</h1>
+  <p>Path rules matter · matching at scale · flow or not?</p>
+</section>
+
+<section class="slide">
+  <h2>Experiments: path choice and scale</h2>
+  <div class="cols">
+    <div>
+      <table class="tight">
+        <tr><th colspan="3">1. The classic bad network (4 nodes, capacities \(C\), a middle edge of capacity 1)</th></tr>
+        <tr><th class="num">\(C\)</th><th class="num">FF, longest-path rule: augmentations</th><th class="num">Edmonds–Karp</th></tr>
+        <tr><td class="num">1,000</td><td class="num">2,000</td><td class="num">2</td></tr>
+        <tr><td class="num">100,000</td><td class="num">200,000</td><td class="num">2</td></tr>
+        <tr><td class="num">1,000,000</td><td class="num">2,000,000</td><td class="num">2</td></tr>
+      </table>
+      <table class="tight" style="margin-top:12px">
+        <tr><th colspan="5">2. Maximum bipartite matching, \(n+n\) vertices, degree \(d\) (ms)</th></tr>
+        <tr><th class="num">\(n\)</th><th class="num">\(d\)</th><th class="num">FF (DFS)</th><th class="num">Edmonds–Karp</th><th class="num">Dinic</th></tr>
+        <tr><td class="num">2,000</td><td class="num">3</td><td class="num">14.7</td><td class="num">35.5</td><td class="num">2.1</td></tr>
+        <tr><td class="num">20,000</td><td class="num">3</td><td class="num">2,165</td><td class="num">6,753</td><td class="num">32.2</td></tr>
+        <tr><td class="num">20,000</td><td class="num">10</td><td class="num">1,700</td><td class="num">10,336</td><td class="num">42.7</td></tr>
+        <tr class="hl"><td class="num">100,000</td><td class="num">10</td><td class="num">–</td><td class="num">–</td><td class="num">635</td></tr>
+      </table>
+      <p class="xsmall muted"><code>Student_Resources/flow_bench.cpp</code>, g++ 15.2 -O2.</p>
+    </div>
+    <div class="box q small"><span class="label">Interpret · 5 min</span>
+      <p>1. Table 1: what does the number of augmentations depend on for each rule? Relate it to input size.</p>
+      <p>2. Table 2: Edmonds–Karp has the better worst-case bound, yet it loses to DFS-FF. Why?</p>
+      <p>3. Why is Dinic so much faster on matching?</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: flow or not?</h2>
+  <p class="small">For each problem: can it be solved exactly with (a polynomial number of) max-flow computations? If yes, give the model. If not, explain what breaks.</p>
+  <ol class="small">
+    <li>Maximum number of <strong>vertex</strong>-disjoint \(s\)–\(t\) paths in a directed graph.</li>
+    <li>A Hamiltonian path from \(s\) to \(t\).</li>
+    <li>Assign workers to shifts where each worker must work <strong>exactly</strong> 3 shifts or none at all.</li>
+    <li>The minimum number of edges to delete so that \(G\) (undirected) becomes disconnected (global min cut).</li>
+    <li>A maximum matching in a general (non-bipartite) graph, via the flow network above with \(L=R=V\).</li>
+  </ol>
+  <p class="small muted">Groups · 12 min</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>Every cut bounds every flow (weak duality). <strong>Max-flow = min-cut</strong>, and the proof builds the cut from the residual graph.</li>
+      <li>Ford–Fulkerson is correct with any augmenting path. The <strong>path rule</strong> decides pseudo-polynomial vs. polynomial: FF \(O(m|f^\ast|)\), Edmonds–Karp \(O(nm^2)\), Dinic \(O(n^2m)\) and \(O(m\sqrt n)\) on unit bipartite graphs.</li>
+      <li><strong>Integrality</strong> turns flows into combinatorial objects (matchings, assignments).</li>
+      <li>Modelling = the unit, the capacities (edges, vertices, uses), conservation, and a proof in <strong>both directions</strong>. Min-cuts answer optimisation (project selection) and impossibility (elimination) questions.</li>
+      <li>Some problems are not flow problems: Hamiltonian paths, "all or nothing" constraints. That is next week.</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L13 (Sat 19 Dec)</span>
+      NP-completeness: certificates, reductions (and their direction!), SAT → 3-SAT → Independent Set → Vertex Cover → Clique; then exhaustive search, backtracking and branch-and-bound done properly.
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> KT 8.1–8.4; CLRS 4e Ch. 34. <strong>PS4</strong> due Sat 26 Dec; <strong>final report</strong> due Thu 24 Dec.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

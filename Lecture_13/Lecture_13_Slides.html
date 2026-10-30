@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L13 — NP-Completeness, Reductions &amp; Exact Exponential Algorithms (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 13 · Sat 19 Dec 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 13<br>NP-Completeness, Reductions &amp;<br>Exact Exponential Algorithms</h1>
+  <p>How to prove that a problem is probably hard, and what to do on Monday morning when it is.</p>
+  <div class="meta">Saturday 19 December 2026 · 3 hours<br>Final report due Thu 24 Dec · PS4 due Sat 26 Dec</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem: an innocent feature request</h2>
+  <div class="cols">
+    <div class="small">
+      <p>A hospital scheduling tool already assigns nurses to shifts (a flow problem, L12). A new request:</p>
+      <blockquote class="box plain">"Also make sure that no two nurses who are in conflict ever share a shift, and use as few distinct shift slots as possible."</blockquote>
+      <p>The team spends three weeks looking for an efficient exact algorithm.</p>
+    </div>
+    <div class="box q small"><span class="label">Discuss · 3 min</span>
+      <p>1. Which classic problem is hiding in "no two conflicting nurses in the same slot, minimise the number of slots"?</p>
+      <p>2. What would it take to <em>convince your manager</em> that nobody knows an efficient exact algorithm, and that none is likely to exist?</p>
+    </div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>P, NP and reductions</h1>
+  <p>Certificates · direction · what a proof requires</p>
+</section>
+
+<section class="slide">
+  <h2>Decision problems, P and NP</h2>
+  <div class="cols">
+    <div class="small">
+      <ul>
+        <li>A <strong>decision problem</strong> = a set of yes-instances (encoded as strings). Optimisation problems have decision versions: "is there a colouring with \(\le k\) colours?"</li>
+        <li><strong>P</strong>: decidable in time polynomial in the input length.</li>
+        <li><strong>NP</strong>: yes-instances have <strong>certificates</strong> of polynomial length that a polynomial-time <strong>verifier</strong> accepts. No-instances have none.</li>
+      </ul>
+      \[x\in L\iff\exists y,\ |y|\le p(|x|):\ V(x,y)=1\]
+      <p>\(\mathrm P\subseteq\mathrm{NP}\) (the verifier ignores \(y\)). Whether \(\mathrm P=\mathrm{NP}\) is open.</p>
+    </div>
+    <table class="small">
+      <tr><th>Problem</th><th>Certificate</th><th>Verification</th></tr>
+      <tr><td>\(k\)-colouring</td><td>a colour per vertex</td><td>check each edge, count colours</td></tr>
+      <tr><td>Hamiltonian cycle</td><td>a vertex order</td><td>a permutation with consecutive edges</td></tr>
+      <tr><td>SAT</td><td>a truth assignment</td><td>evaluate the formula</td></tr>
+      <tr><td>Subset sum</td><td>a subset</td><td>add it up (in bits!)</td></tr>
+      <tr><td>"No Hamiltonian cycle"</td><td class="hl">?</td><td>not known to be in NP (it is in coNP)</td></tr>
+    </table>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Polynomial-time reductions and their direction</h2>
+  <div class="small">
+    <div class="box defn"><span class="label">Definition</span>\(A\le_p B\) if there is a polynomial-time computable \(f\) with \(x\in A\iff f(x)\in B\) for every instance \(x\).</div>
+    <div class="cols">
+      <div>
+        <p><strong>Meaning:</strong> "\(A\) is no harder than \(B\)". An efficient algorithm for \(B\) gives one for \(A\): compute \(f(x)\), then run \(B\)'s algorithm.</p>
+        <p><strong>To show \(B\) is hard</strong>, reduce a known hard problem <strong>to</strong> \(B\): \(\text{(known hard)}\le_p B\).</p>
+        <p><strong>Transitivity:</strong> \(A\le_p B\) and \(B\le_p C\) imply \(A\le_p C\).</p>
+      </div>
+      <div class="box bad"><span class="label">The classic error</span>"I reduced my problem \(B\) to SAT, so \(B\) is NP-hard." That shows only \(B\in\) NP (no harder than SAT). The arrow points the wrong way.</div>
+    </div>
+    <div class="box key"><span class="label">Mnemonic</span>The reduction transforms instances <strong>of the known hard problem</strong> into instances <strong>of your problem</strong>. You build gadgets <em>inside your problem</em>.</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>NP-hard, NP-complete, and what a proof requires</h2>
+  <div class="cols">
+    <div class="small">
+      <ul>
+        <li><strong>NP-hard:</strong> every problem in NP reduces to it. It need not be in NP (e.g. optimisation versions, the halting problem).</li>
+        <li><strong>NP-complete:</strong> NP-hard <em>and</em> in NP.</li>
+        <li><strong>Cook–Levin (1971):</strong> SAT is NP-complete. Every NP verifier's computation can be encoded as a CNF formula.</li>
+        <li>Consequence: if any NP-complete problem is in P, then P = NP.</li>
+      </ul>
+    </div>
+    <div class="box thm small"><span class="label">Recipe: proving \(X\) NP-complete</span>
+      <ol>
+        <li><strong>\(X\in\mathrm{NP}\):</strong> describe a certificate and a polynomial verifier.</li>
+        <li><strong>Choose</strong> a known NP-complete \(Y\) with a similar structure.</li>
+        <li><strong>Construct</strong> \(f\): instances of \(Y\) → instances of \(X\). Argue it runs in polynomial time (output size!).</li>
+        <li><strong>(⇒)</strong> \(y\) yes ⇒ \(f(y)\) yes: map a solution forwards.</li>
+        <li><strong>(⇐)</strong> \(f(y)\) yes ⇒ \(y\) yes: map <em>any</em> solution of \(f(y)\) backwards. This is often the hard part.</li>
+      </ol>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: certificates and directions</h2>
+  <ol class="small">
+    <li>Give a certificate and a verifier (with its running time) for: (a) "\(G\) has a clique of size \(\ge k\)"; (b) "the integer \(N\) is composite"; (c) "the knapsack instance has a solution with value \(\ge V\)".</li>
+    <li>True or false, with a one-line reason:
+      <ol type="a">
+        <li>If \(A\le_p B\) and \(A\) is NP-hard, then \(B\) is NP-hard.</li>
+        <li>If \(A\le_p B\) and \(B\in\mathrm P\), then \(A\in\mathrm P\).</li>
+        <li>If \(A\le_p B\) and \(B\) is NP-hard, then \(A\) is NP-hard.</li>
+        <li>Every NP-hard problem is in NP.</li>
+        <li>An \(O(2^{\sqrt n})\) algorithm for an NP-complete problem would imply P = NP.</li>
+      </ol>
+    </li>
+  </ol>
+  <p class="small muted">Pairs · 8 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>A chain of reductions</h1>
+  <p>SAT → 3-SAT → Independent Set → Vertex Cover, Clique</p>
+</section>
+
+<section class="slide">
+  <h2>SAT → 3-SAT</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>3-SAT:</strong> CNF where every clause has exactly 3 literals. In NP: the certificate is an assignment.</p>
+      <p><strong>Reduction:</strong> transform each clause \(C=(\ell_1\lor\dots\lor\ell_k)\) separately:</p>
+      <ul>
+        <li>\(k=1\): \((\ell_1\lor y\lor z)(\ell_1\lor y\lor\bar z)(\ell_1\lor\bar y\lor z)(\ell_1\lor\bar y\lor\bar z)\).</li>
+        <li>\(k=2\): \((\ell_1\lor\ell_2\lor y)(\ell_1\lor\ell_2\lor\bar y)\).</li>
+        <li>\(k=3\): unchanged.</li>
+        <li>\(k&gt;3\): a chain with new variables \(y_1..y_{k-3}\):
+        \[(\ell_1\lor\ell_2\lor y_1)(\bar y_1\lor\ell_3\lor y_2)\cdots(\bar y_{k-3}\lor\ell_{k-1}\lor\ell_k).\]</li>
+      </ul>
+    </div>
+    <div class="box proof small"><span class="label">Correctness of the chain (\(k&gt;3\))</span>
+      <p>(⇒) If some \(\ell_i\) is true, set \(y_j=\) true for \(j&lt;i-1\) and false for \(j\ge i-1\). Every chain clause is then satisfied.</p>
+      <p>(⇐) If all \(\ell_i\) are false, the first clause forces \(y_1\), which forces \(y_2\), …, \(y_{k-3}\), and the last clause \((\bar y_{k-3}\lor\ell_{k-1}\lor\ell_k)\) is false. So some \(\ell_i\) must be true.</p>
+      <p>Size: \(O(k)\) new clauses per clause, so linear overall.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>3-SAT → Independent Set</h2>
+  <div class="cols wide-r mid">
+    <div class="small">
+      <p><strong>IS:</strong> does \(G\) have \(k\) pairwise non-adjacent vertices?</p>
+      <p><strong>Construction</strong> from a 3-CNF \(\varphi\) with \(m\) clauses:</p>
+      <ul>
+        <li>a <strong>triangle</strong> for each clause (one vertex per literal occurrence);</li>
+        <li>a <strong>conflict edge</strong> between every pair of complementary literals (\(x_i\) and \(\bar x_i\)) in different triangles;</li>
+        <li>\(k=m\).</li>
+      </ul>
+      <p>Size: \(3m\) vertices, \(O(m^2)\) edges.</p>
+    </div>
+    <svg viewBox="0 0 520 270" width="500">
+      <g font-size="14">
+        <g stroke="#46505e" stroke-width="2">
+          <line x1="80" y1="60" x2="40" y2="130"/><line x1="80" y1="60" x2="120" y2="130"/><line x1="40" y1="130" x2="120" y2="130"/>
+          <line x1="260" y1="60" x2="220" y2="130"/><line x1="260" y1="60" x2="300" y2="130"/><line x1="220" y1="130" x2="300" y2="130"/>
+          <line x1="440" y1="60" x2="400" y2="130"/><line x1="440" y1="60" x2="480" y2="130"/><line x1="400" y1="130" x2="480" y2="130"/>
+        </g>
+        <g stroke="#a3262a" stroke-width="2" stroke-dasharray="6 4" fill="none">
+          <path d="M80 60 Q 170 10 260 60"/><path d="M120 130 Q 260 210 400 130"/><path d="M300 130 Q 390 180 480 130"/>
+        </g>
+        <g fill="#fff" stroke="#172b45" stroke-width="2">
+          <circle cx="80" cy="60" r="17" fill="#e6eff8"/><circle cx="40" cy="130" r="17"/><circle cx="120" cy="130" r="17"/>
+          <circle cx="260" cy="60" r="17"/><circle cx="220" cy="130" r="17" fill="#e6eff8"/><circle cx="300" cy="130" r="17"/>
+          <circle cx="440" cy="60" r="17"/><circle cx="400" cy="130" r="17"/><circle cx="480" cy="130" r="17" fill="#e6eff8"/>
+        </g>
+        <g text-anchor="middle" font-size="13">
+          <text x="80" y="65">x₁</text><text x="40" y="135">x₂</text><text x="120" y="135">x₃</text>
+          <text x="260" y="65">x̄₁</text><text x="220" y="135">x₂</text><text x="300" y="135">x̄₄</text>
+          <text x="440" y="65">x₂</text><text x="400" y="135">x̄₃</text><text x="480" y="135">x₄</text>
+        </g>
+        <text x="260" y="245" text-anchor="middle" fill="#46505e">(x₁∨x₂∨x₃)(x̄₁∨x₂∨x̄₄)(x₂∨x̄₃∨x₄) · k = 3</text>
+        <text x="260" y="265" text-anchor="middle" fill="#1f5f99">shaded: x₁ = x₂ = x₄ = true → one vertex per triangle</text>
+      </g>
+    </svg>
+  </div>
+  <div class="box proof small"><span class="label">Proof</span>(⇒) Pick one true literal per clause: \(m\) vertices, one per triangle, never complementary, so independent. (⇐) An independent set of size \(m\) has exactly one vertex per triangle (triangles are cliques). No complementary pair is chosen, so setting the chosen literals to true is a consistent assignment (other variables arbitrary), and it satisfies every clause.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>IS ↔ Vertex Cover ↔ Clique</h2>
+  <div class="cols">
+    <div class="small">
+      <div class="box thm"><span class="label">Complement lemma</span>\(S\) is an independent set of \(G\) ⟺ \(V\setminus S\) is a vertex cover of \(G\).</div>
+      <p><em>Proof:</em> \(S\) is independent ⟺ no edge has both endpoints in \(S\) ⟺ every edge has an endpoint in \(V\setminus S\).</p>
+      <p>So \((G,k)\in\) IS ⟺ \((G,n-k)\in\) VC, and both directions are reductions.</p>
+    </div>
+    <div class="small">
+      <div class="box thm"><span class="label">Clique lemma</span>\(S\) is an independent set of \(G\) ⟺ \(S\) is a clique of \(\bar G\) (the complement graph).</div>
+      <p>So \((G,k)\in\) IS ⟺ \((\bar G,k)\in\) CLIQUE. Building \(\bar G\) costs \(O(n^2)\).</p>
+      <p><strong>Chain:</strong> SAT \(\le_p\) 3-SAT \(\le_p\) IS \(\le_p\) VC, CLIQUE. All are NP-complete (each is in NP, via a subset certificate).</p>
+    </div>
+  </div>
+  <div class="box warn small">Easy special cases exist: VC in <strong>bipartite</strong> graphs is polynomial (König, L12); IS in trees and interval graphs is polynomial (DP, greedy). NP-completeness is about the <em>general</em> problem.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Weak vs. strong NP-hardness (the bridge from L07)</h2>
+  <div class="cols">
+    <div class="small">
+      <ul>
+        <li><strong>Subset sum, knapsack, partition:</strong> NP-complete, but solvable in pseudo-polynomial time \(O(nT)\). The hardness needs numbers exponential in \(n\): <strong>weakly</strong> NP-hard.</li>
+        <li><strong>TSP, 3-partition, bin packing, graph colouring:</strong> NP-hard even when all numbers are bounded by a polynomial in \(n\): <strong>strongly</strong> NP-hard. No pseudo-polynomial algorithm unless P = NP.</li>
+      </ul>
+      <p>Why it matters for design: for weakly hard problems with <em>small numbers</em> in practice, DP is a real solution; for strongly hard ones it is not.</p>
+    </div>
+    <div class="box key small"><span class="label">Reading a hardness proof critically</span>
+      <p>Ask:</p>
+      <ol>
+        <li>Which problem was reduced <strong>to</strong> which?</li>
+        <li>Do the constructed instances look like <strong>your</strong> instances (numbers, structure, size)?</li>
+        <li>Does the hardness survive your special structure (planar? bounded degree? small \(k\)?)</li>
+      </ol>
+      <p>Hardness of the general problem does not settle your special case.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: reductions</h2>
+  <ol class="small">
+    <li><strong>3-COLOR ≤ 4-COLOR.</strong> Give the reduction and prove both directions.</li>
+    <li><strong>HAM-CYCLE ≤ TSP (decision: "a tour of cost \(\le B\)?").</strong> Give the construction. Then: what does the construction show about <em>approximating</em> TSP when the triangle inequality is not required? (Think about the edge weights you choose.)</li>
+    <li><strong>Find the flaw.</strong> "To show LONGEST-PATH (is there a simple path with \(\ge k\) edges?) is NP-hard, reduce it to 3-SAT by encoding 'vertex \(v\) is at position \(i\)' with variables \(x_{v,i}\)."</li>
+  </ol>
+  <p class="small muted">Groups · 10 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Solving hard problems exactly</h1>
+  <p>Backtracking · branch-and-bound · search trees · DP over subsets</p>
+</section>
+
+<section class="slide">
+  <h2>Exhaustive search, done intelligently</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>Backtracking = DFS over partial solutions</h3>
+      <pre class="pseudo sm">SEARCH(partial)
+  if partial is complete: record it; return
+  for each extension e of partial
+      if FEASIBLE(partial + e):   ▷ prune infeasible branches
+          SEARCH(partial + e)</pre>
+      <ul>
+        <li><strong>Subset sum with pruning</strong> ("stop when the running sum exceeds \(T\)") is valid <strong>only for non-negative</strong> numbers. The legacy code did not state this.</li>
+        <li><strong>N-Queens:</strong> one queen per row, columns and diagonals as bit sets, which prunes \(n^n\) down to far fewer nodes. The time is still exponential, but the base of the exponent is much smaller.</li>
+      </ul>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">Branch-and-bound (optimisation)</span>At each node, compute an <strong>optimistic bound</strong> on any completion. If bound ≤ incumbent (for maximisation), prune.</div>
+      <div class="box thm"><span class="label">Validity requirement</span>The bound must be \(\ge\) the value of <strong>every</strong> completion of the node (for maximisation). Then pruning never discards an optimum.</div>
+      <div class="box bad"><span class="label">Legacy correction</span>The old "B&amp;B knapsack" code pruned only infeasible branches (\(W&lt;0\)). That is backtracking with no bound, \(O(2^n)\).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Knapsack branch-and-bound with the fractional bound</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Sort the items by value/weight. At a node (items \(1..i\) decided, weight \(w\), value \(v\)):</p>
+      \[\text{bound}=v+\text{(greedy fractional knapsack on items }i{+}1..n\text{ with capacity }W-w).\]
+      <div class="box proof"><span class="label">Why it is valid</span>Every 0/1 completion is a feasible solution of the fractional relaxation over the remaining items, and the greedy solves the fractional problem optimally (L08, exercise A1). So bound ≥ every completion's value.</div>
+      <p>Branch: take item \(i+1\) (if it fits) first, then skip it. Prune when bound ≤ incumbent.</p>
+    </div>
+    <div class="box key small"><span class="label">What makes B&amp;B fast or slow</span>
+      <ul>
+        <li>A <strong>tight bound</strong> (close to the true optimum) prunes early.</li>
+        <li>A <strong>good incumbent</strong> early (e.g. start from the greedy solution).</li>
+        <li>A good <strong>branching order</strong>.</li>
+      </ul>
+      <p>On <em>strongly correlated</em> instances (\(v_i\approx w_i+c\)), all items have similar density, the fractional bound is loose everywhere, and B&amp;B degenerates.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Search trees with provable bounds: Vertex Cover</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>Question:</strong> is there a vertex cover of size \(\le k\)?</p>
+      <ul>
+        <li><strong>Edge branching:</strong> pick any edge \((u,v)\). Either \(u\) or \(v\) is in the cover. Branch on both with \(k-1\). The tree has \(\le2^k\) leaves: \(O(2^k\,m)\).</li>
+        <li><strong>Degree branching:</strong> pick \(v\) of maximum degree \(d\). Either \(v\) is in the cover (\(k-1\)), or <strong>all</strong> of \(N(v)\) is (\(k-d\)). If \(d\ge2\): \(T(k)\le T(k-1)+T(k-2)\), so \(O(1.618^k)\). With \(d\ge3\): \(O(1.47^k)\). If every degree is \(\le2\), the graph is paths and cycles: solve directly.</li>
+      </ul>
+      <p>These algorithms are exponential <strong>only in \(k\)</strong>: they are <strong>fixed-parameter tractable</strong>.</p>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">Held–Karp (1962): DP over subsets for TSP</span>\(C(S,j)\) = the cheapest path from city 1 that visits exactly \(S\) and ends at \(j\):
+        \[C(S,j)=\min_{i\in S\setminus\{j\}}C(S\setminus\{j\},i)+d(i,j).\]
+        \(O(n^22^n)\) time instead of \((n-1)!\): \(n=25\) is fine, \(n=60\) is not.</div>
+      <div class="box plain">Meet-in-the-middle (knapsack/subset sum): \(O(2^{n/2}n)\). Inclusion–exclusion: colouring in \(O(2^nn)\) (Björklund–Husfeldt–Koivisto 2009).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Experiment: exact methods in practice</h2>
+  <div class="cols">
+    <div>
+      <table class="xtight">
+        <tr><th colspan="6">0/1 knapsack, \(W\) = half the total weight (search nodes; ms)</th></tr>
+        <tr><th class="num">\(n\)</th><th>instances</th><th class="num">backtracking nodes</th><th class="num">B&amp;B nodes</th><th class="num">B&amp;B ms</th><th class="num">DP ms</th></tr>
+        <tr><td class="num">30</td><td>uncorrelated</td><td class="num">1.24×10⁹</td><td class="num">134</td><td class="num">0.0</td><td class="num">0.1</td></tr>
+        <tr><td class="num">100</td><td>uncorrelated</td><td class="num">–</td><td class="num">647</td><td class="num">0.0</td><td class="num">1.2</td></tr>
+        <tr><td class="num">30</td><td>correlated</td><td class="num">1.31×10⁹</td><td class="num">2,512</td><td class="num">0.0</td><td class="num">0.1</td></tr>
+        <tr class="hl"><td class="num">100</td><td>correlated</td><td class="num">–</td><td class="num">1.19×10⁹</td><td class="num">3,439</td><td class="num">1.2</td></tr>
+      </table>
+      <table class="xtight" style="margin-top:10px">
+        <tr><th colspan="4">Minimum vertex cover by iterative deepening on \(k\) (random graphs, \(m=2n\); total search nodes)</th></tr>
+        <tr><th class="num">\(n\)</th><th class="num">OPT</th><th class="num">edge branching</th><th class="num">degree branching</th></tr>
+        <tr><td class="num">30</td><td class="num">17</td><td class="num">368,612</td><td class="num">950</td></tr>
+        <tr><td class="num">50</td><td class="num">26</td><td class="num">136,816,087 (3.9 s)</td><td class="num">12,139 (2.6 ms)</td></tr>
+        <tr><td class="num">60</td><td class="num">29</td><td class="num">–</td><td class="num">23,644</td></tr>
+      </table>
+      <p class="xsmall muted"><code>Student_Resources/exact_bench.cpp</code>, g++ 15.2 -O2.</p>
+    </div>
+    <div class="box q small"><span class="label">Interpret · 4 min</span>
+      <p>1. B&amp;B vs. DP: which wins, where, and why does DP not care about correlation?</p>
+      <p>2. Is the \(O(nW)\) DP "efficient" here? What would change it?</p>
+      <p>3. What does the VC table say about worst-case bounds vs. branching rules?</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>If exact is too expensive: a preview of approximation</h2>
+  <div class="cols">
+    <div class="small">
+      <pre class="pseudo sm">MATCHING-VC(G)
+  C = ∅
+  while some edge (u,v) has u ∉ C and v ∉ C
+      C = C ∪ {u, v}
+  return C</pre>
+      <ul>
+        <li>Polynomial: \(O(n+m)\).</li>
+        <li>Always returns a vertex cover.</li>
+        <li><strong>Claim:</strong> \(|C|\le2\cdot\mathrm{OPT}\), for <em>every</em> graph.</li>
+      </ul>
+      <p>Proof: L14. Hint: which lower bound on OPT can you see in the edges the algorithm picked?</p>
+    </div>
+    <div class="box key small"><span class="label">Responses to NP-hardness so far</span>
+      <table class="tight">
+        <tr><td>Exact, exponential</td><td>backtracking, B&amp;B, search trees, DP over subsets</td></tr>
+        <tr><td>Exact, special structure</td><td>trees, bipartite graphs, small parameters (FPT)</td></tr>
+        <tr><td>Exact, pseudo-polynomial</td><td>small numbers (L07)</td></tr>
+        <tr class="hl"><td>Approximate with a guarantee</td><td>L14</td></tr>
+        <tr><td>Heuristics, randomization</td><td>L14</td></tr>
+      </table>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>NP = efficiently <strong>verifiable</strong>. NP-complete = in NP and every NP problem reduces to it.</li>
+      <li>To prove \(X\) hard: reduce a known hard problem <strong>to</strong> \(X\). Polynomial construction + (⇒) + (⇐) + membership.</li>
+      <li>The chain SAT → 3-SAT → IS ↔ VC ↔ Clique: gadgets enforce "choose one" and "be consistent".</li>
+      <li>Weakly vs. strongly NP-hard decides whether pseudo-polynomial DP is an option.</li>
+      <li>Exact methods: pruning, <strong>valid</strong> bounds, and smart branching change what is solvable in practice, though not the worst case.</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next · L14 (Sat 26 Dec)</span>
+      Approximation algorithms (ratios, guarantees vs. heuristics; vertex cover, set cover, metric TSP), comparing all responses to hardness, and the course synthesis. Presentations and vivas are also on this day.
+      <p class="xsmall" style="margin-top:8px"><strong>Final report</strong> due Thu 24 Dec, 23:59. <strong>PS4</strong> due Sat 26 Dec.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

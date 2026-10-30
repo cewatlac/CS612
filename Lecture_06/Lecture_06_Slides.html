@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L06 — Dynamic Programming I: State-Space Design (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 06 · Sat 31 Oct 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 06<br>Dynamic Programming I —<br>State-Space Design</h1>
+  <p>The hard part of dynamic programming is not the table. It is deciding what a state must remember.</p>
+  <div class="meta">Saturday 31 October 2026 · 3 hours<br>PS2 due Sat 07 Nov (Q3 uses today's material)</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem: comparing sequences</h2>
+  <div class="cols wide-l">
+    <div class="small">
+      <ul>
+        <li><code>git diff</code> shows the lines that changed between two versions of a file: essentially a <strong>longest common subsequence</strong> of lines.</li>
+        <li>Bioinformatics aligns DNA and protein sequences with <strong>edit distance</strong> variants (substitution matrices, gap penalties).</li>
+        <li>Spell checkers suggest the dictionary words with the smallest edit distance.</li>
+      </ul>
+      <p>For two sequences of length \(10^5\), a DP over "all pairs of prefixes" has \(10^{10}\) states: 40 GB as 32-bit integers.</p>
+    </div>
+    <div class="box q small"><span class="label">Discuss · 3 min</span>If you only need the <strong>distance</strong> (not the alignment), how much of that table do you really need to keep? What if you need the alignment too?</div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>Designing the state</h1>
+  <p>The DAG view · what the state must remember · a correctness template</p>
+</section>
+
+<section class="slide">
+  <h2>DP is a path problem on a DAG of states</h2>
+  <div class="cols wide-r mid">
+    <div class="small">
+      <ul>
+        <li><strong>Nodes</strong> = states (subproblems).</li>
+        <li><strong>Edges</strong> = transitions (a decision, with a cost/value).</li>
+        <li><strong>Sources/sinks</strong> = base cases / the goal.</li>
+        <li>Optimal value = the best path; counting = the number of paths.</li>
+        <li><strong>Evaluation order</strong> = any topological order of the DAG.</li>
+        <li><strong>Cost</strong> = #states × transition cost = \(O(V+E)\) of the DAG.</li>
+      </ul>
+      <div class="box warn">A cyclic dependency means it is not DP (as stated): either the state is missing information, or the problem is a genuine shortest path with cycles (L10).</div>
+    </div>
+    <svg viewBox="0 0 470 300" width="450">
+      <g font-size="13">
+        <g fill="#fff" stroke="#172b45" stroke-width="2">
+          <circle cx="60" cy="60" r="20"/><circle cx="160" cy="60" r="20"/><circle cx="260" cy="60" r="20"/><circle cx="360" cy="60" r="20"/>
+          <circle cx="60" cy="150" r="20"/><circle cx="160" cy="150" r="20"/><circle cx="260" cy="150" r="20"/><circle cx="360" cy="150" r="20"/>
+          <circle cx="60" cy="240" r="20"/><circle cx="160" cy="240" r="20"/><circle cx="260" cy="240" r="20"/><circle cx="360" cy="240" r="20" fill="#e6eff8" stroke="#1f5f99"/>
+        </g>
+        <g stroke="#46505e" stroke-width="1.6" marker-end="url(#ah)">
+          <line x1="80" y1="60" x2="138" y2="60"/><line x1="180" y1="60" x2="238" y2="60"/><line x1="280" y1="60" x2="338" y2="60"/>
+          <line x1="80" y1="150" x2="138" y2="150"/><line x1="180" y1="150" x2="238" y2="150"/><line x1="280" y1="150" x2="338" y2="150"/>
+          <line x1="80" y1="240" x2="138" y2="240"/><line x1="180" y1="240" x2="238" y2="240"/><line x1="280" y1="240" x2="338" y2="240"/>
+          <line x1="60" y1="80" x2="60" y2="128"/><line x1="160" y1="80" x2="160" y2="128"/><line x1="260" y1="80" x2="260" y2="128"/><line x1="360" y1="80" x2="360" y2="128"/>
+          <line x1="60" y1="170" x2="60" y2="218"/><line x1="160" y1="170" x2="160" y2="218"/><line x1="260" y1="170" x2="260" y2="218"/><line x1="360" y1="170" x2="360" y2="218"/>
+          <line x1="75" y1="75" x2="145" y2="135"/><line x1="175" y1="75" x2="245" y2="135"/><line x1="275" y1="75" x2="345" y2="135"/>
+          <line x1="75" y1="165" x2="145" y2="225"/><line x1="175" y1="165" x2="245" y2="225"/><line x1="275" y1="165" x2="345" y2="225"/>
+        </g>
+        <defs><marker id="ah" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 z" fill="#46505e"/></marker></defs>
+        <text x="60" y="25" text-anchor="middle" fill="#46505e">(0,0)</text>
+        <text x="360" y="285" text-anchor="middle" fill="#1f5f99">(n,m) = answer</text>
+        <text x="235" y="298" text-anchor="middle" fill="#6b7482">prefix-pair states of LCS / edit distance</text>
+      </g>
+    </svg>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>What must the state remember?</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>Principle:</strong> the state must contain exactly the information about the past that the <strong>remaining</strong> decisions and their costs depend on. The rest of the history must be irrelevant (a "Markov" property).</p>
+      <p><strong>Example.</strong> Climb \(n\) stairs with steps of 1 or 2, <strong>never two 2-steps in a row</strong>. Count the ways.</p>
+      <ul>
+        <li>State "\(i\) stairs done"? Not enough: whether a 2-step is allowed next depends on the last step.</li>
+        <li>State \((i,\ell)\), with \(\ell\in\{1,2\}\) the last step: \(W(i,1)=W(i-1,1)+W(i-1,2)\), \(W(i,2)=W(i-2,1)\).</li>
+      </ul>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">Test for a candidate state</span>Take two different histories that lead to the same state. Must every continuation have the same value (cost, feasibility) for both? If not, the state is missing information.</div>
+      <div class="box warn"><span class="label">And the opposite error</span>Remembering too much (e.g. the full set of items chosen) makes the state space exponential. Good design removes everything the future does not need.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>A correctness template for DP</h2>
+  <ol class="small">
+    <li><strong>State semantics:</strong> in words, what \(D[\text{state}]\) equals (e.g. "the length of an LCS of \(X[1..i]\) and \(Y[1..j]\)").</li>
+    <li><strong>Recurrence</strong> by case analysis on the <strong>last decision</strong> of an optimal solution.</li>
+    <li><strong>Correctness:</strong>
+      <ol type="a">
+        <li><em>Soundness:</em> every value the recurrence produces is achievable (each case builds a valid solution);</li>
+        <li><em>Optimality:</em> an optimal solution falls into one of the cases, and its remainder is optimal for the smaller state (<strong>cut-and-paste</strong>).</li>
+      </ol>
+    </li>
+    <li><strong>Base cases</strong> that match the semantics.</li>
+    <li><strong>Order:</strong> a topological order of the dependencies (or memoization).</li>
+    <li><strong>Answer extraction</strong> from the final state(s).</li>
+    <li><strong>Complexity:</strong> #states × cost per transition; space and how to reduce it.</li>
+    <li><strong>Reconstruction</strong> of an optimal solution (store choices, or re-derive them).</li>
+  </ol>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: define the state (no code)</h2>
+  <ol class="small">
+    <li><strong>Word break.</strong> Given a string \(s[1..n]\) and a dictionary, can \(s\) be split into dictionary words? Give the state, its meaning, the recurrence and the cost (with dictionary lookup cost \(\ell\)).</li>
+    <li><strong>Grid with few turns.</strong> Count monotone (right/down) paths from \((1,1)\) to \((n,n)\) that change direction <strong>at most \(k\) times</strong>. What must the state remember? How many states?</li>
+    <li><strong>Deadline tasks.</strong> Tasks \(1..n\) must be done in order. Task \(i\) takes \(t_i\) and can be skipped at penalty \(p_i\). Total time must not exceed \(T\). Minimise the penalty. What is the state, and is the algorithm polynomial?</li>
+  </ol>
+  <p class="small muted">Pairs · 10 min · then apply the two-histories test to each of your states.</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Three deep case studies</h1>
+  <p>LCS · edit distance · matrix-chain multiplication</p>
+</section>
+
+<section class="slide">
+  <h2>LCS: state, recurrence, and the key lemma</h2>
+  <div class="small">
+    <p><strong>State:</strong> \(L[i][j]\) = the length of a longest common subsequence of \(X[1..i]\) and \(Y[1..j]\).</p>
+    \[L[i][j]=\begin{cases}0 & i=0\text{ or }j=0\\ L[i-1][j-1]+1 & x_i=y_j\\ \max\big(L[i-1][j],\,L[i][j-1]\big) & x_i\ne y_j\end{cases}\]
+    <div class="box thm"><span class="label">Lemma (the match case is safe)</span>If \(x_i=y_j\), some LCS of \(X[1..i],Y[1..j]\) uses \(x_i\) matched with \(y_j\).</div>
+    <div class="box proof"><span class="label">Proof (exchange)</span>Take any LCS \(Z\) and let its last matched pair be \((x_{i'},y_{j'})\), with \(i'\le i\), \(j'\le j\). If \(i'&lt;i\) and \(j'&lt;j\), appending the pair \((x_i,y_j)\) gives a longer common subsequence: a contradiction. Otherwise replace the last pair by \((x_i,y_j)\): still increasing, same length. So some LCS ends with \(x_i\) matched to \(y_j\), and by cut-and-paste its remainder is an LCS of \(X[1..i-1],Y[1..j-1]\).</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>LCS: the table, reconstruction, and space</h2>
+  <div class="cols">
+    <table class="tight grid">
+      <tr><th></th><th>∅</th><th>B</th><th>D</th><th>C</th><th>A</th><th>B</th></tr>
+      <tr><th>∅</th><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td><td>0</td></tr>
+      <tr><th>A</th><td>0</td><td>0</td><td>0</td><td>0</td><td class="hl">1</td><td>1</td></tr>
+      <tr><th>B</th><td>0</td><td class="hl">1</td><td>1</td><td>1</td><td>1</td><td>2</td></tr>
+      <tr><th>C</th><td>0</td><td>1</td><td>1</td><td class="hl">2</td><td>2</td><td>2</td></tr>
+      <tr><th>B</th><td>0</td><td>1</td><td>1</td><td>2</td><td>2</td><td class="hl">3</td></tr>
+    </table>
+    <div class="small">
+      <p>\(X=\) ABCB, \(Y=\) BDCAB: LCS length 3 (e.g. <strong>BCB</strong>).</p>
+      <p><strong>Reconstruction:</strong> from \((n,m)\), follow the choice that produced each value: diagonal on a match, otherwise to the larger neighbour. \(O(n+m)\) steps, but it needs the whole table.</p>
+      <table class="tight">
+        <tr><th>Goal</th><th>Time</th><th>Space</th></tr>
+        <tr><td>Length only (two rows)</td><td>\(\Theta(nm)\)</td><td>\(\Theta(\min(n,m))\)</td></tr>
+        <tr><td>Length + an LCS (full table)</td><td>\(\Theta(nm)\)</td><td>\(\Theta(nm)\)</td></tr>
+        <tr class="hl"><td>Length + an LCS (Hirschberg)</td><td>\(\Theta(nm)\) (≈ 2×)</td><td>\(\Theta(n+m)\)</td></tr>
+      </table>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Edit distance</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>State:</strong> \(E[i][j]\) = the minimum cost of transforming \(X[1..i]\) into \(Y[1..j]\), with insertion, deletion and substitution costing 1 each (a match costs 0).</p>
+      \[E[i][j]=\min\begin{cases}E[i-1][j]+1 & \text{delete }x_i\\ E[i][j-1]+1 & \text{insert }y_j\\ E[i-1][j-1]+[x_i\ne y_j] & \text{match/substitute}\end{cases}\]
+      <p>Base cases: \(E[i][0]=i\), \(E[0][j]=j\).</p>
+      <p><strong>Correctness:</strong> write an optimal edit sequence as an <strong>alignment</strong>. Its last column is \((x_i,-)\), \((-,y_j)\) or \((x_i,y_j)\). These are exactly the three cases, and the rest of the alignment is optimal for the smaller state (cut-and-paste).</p>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">DAG view</span>A shortest path from \((0,0)\) to \((n,m)\) in a grid graph with edge weights 0/1. That makes it a special shortest-path problem, and this structure is what Myers' \(O((n+m)D)\) algorithm exploits.</div>
+      <div class="box plain"><strong>General costs:</strong> any non-negative costs \(c_{ins}(y)\), \(c_{del}(x)\), \(c_{sub}(x,y)\) work unchanged (sequence alignment in bioinformatics). Affine gap penalties need extra state: "am I inside a gap?" (Gotoh).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Matrix-chain multiplication: interval states</h2>
+  <div class="cols">
+    <div class="small">
+      <p>\(A_1A_2\cdots A_n\), with \(A_i\) of size \(p_{i-1}\times p_i\). Multiplying \(p\times q\) by \(q\times r\) costs \(pqr\). Choose the parenthesisation that minimises the total cost.</p>
+      <p><strong>State:</strong> \(M[i][j]\) = the minimum cost to compute \(A_i\cdots A_j\).</p>
+      \[M[i][j]=\min_{i\le k&lt;j}\Big(M[i][k]+M[k+1][j]+p_{i-1}p_kp_j\Big),\quad M[i][i]=0.\]
+      <p><strong>Last decision:</strong> the <em>final</em> multiplication splits the chain at some \(k\).</p>
+      <p><strong>Order:</strong> by increasing chain length \(j-i\).</p>
+    </div>
+    <div class="stack small">
+      <table class="tight">
+        <tr><th>States</th><th>Transition</th><th>Time</th><th>Space</th></tr>
+        <tr><td>\(\Theta(n^2)\)</td><td>\(O(n)\)</td><td>\(\Theta(n^3)\)</td><td>\(\Theta(n^2)\)</td></tr>
+      </table>
+      <div class="box q"><span class="label">Ask</span>Dimensions \(10\times100,\ 100\times5,\ 5\times50\). Compare \((A_1A_2)A_3\) with \(A_1(A_2A_3)\).</div>
+      <div class="box warn">Greedy "multiply the cheapest adjacent pair first" is <strong>not</strong> optimal (exercise). The number of parenthesisations is a Catalan number: \(\Omega(4^n/n^{3/2})\).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>How good are these algorithms? A hardness remark</h2>
+  <div class="small">
+    <table>
+      <tr><th>Problem</th><th>Classic DP</th><th>Known better?</th></tr>
+      <tr><td>LCS, edit distance (general strings)</td><td>\(\Theta(nm)\)</td><td>\(O(n^2/\log^2 n)\) (Four Russians; Masek–Paterson). No \(O(n^{2-\varepsilon})\) algorithm unless the Strong Exponential Time Hypothesis fails (Backurs–Indyk 2015; Abboud et al. 2015).</td></tr>
+      <tr><td>Edit distance, small distance \(D\)</td><td>\(\Theta(nm)\)</td><td>\(O((n+m)D)\) (Ukkonen; Myers), \(O(n+D^2)\) (Landau–Vishkin)</td></tr>
+      <tr><td>Matrix-chain order</td><td>\(\Theta(n^3)\)</td><td>\(O(n\log n)\) (Hu–Shing)</td></tr>
+    </table>
+    <div class="box key" style="margin-top:12px"><span class="label">MSc point</span>"Conditional lower bounds" (fine-grained complexity) explain why decades of effort have not produced strongly subquadratic edit-distance algorithms. It is the polynomial-time analogue of NP-hardness (L13).</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: prove and refute</h2>
+  <ol class="small">
+    <li>Find dimensions \(p_0..p_3\) (3 matrices) for which "multiply the cheapest adjacent pair first" is not optimal.</li>
+    <li>Prove the cut-and-paste step for MCM: if the optimal final split is at \(k\), then the parenthesisation used for \(A_i..A_k\) is optimal for that subchain.</li>
+    <li>Edit distance: what is \(E\) for "kitten" → "sitting"? Give one optimal alignment.</li>
+  </ol>
+  <p class="small muted">Individually · 7 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>State-design workshop</h1>
+  <p>Design, then critique</p>
+</section>
+
+<section class="slide">
+  <h2>Exercise C1: design (groups)</h2>
+  <ol class="small">
+    <li><strong>Longest common substring</strong> (contiguous) of \(X\) and \(Y\). Why does the LCS state not work unchanged? Give the right state and complexity.</li>
+    <li><strong>Cutting a stick.</strong> A stick of length \(\ell\) must be cut at given positions \(c_1&lt;\dots&lt;c_k\). Each cut costs the length of the piece being cut. Minimise the total cost. (Hint: which cut happens <em>last</em>… or first?)</li>
+    <li><strong>Segmented least squares (sketch).</strong> Fit points \(1..n\) with line segments; cost = the sum of the segments' squared errors + \(C\) per segment. State and recurrence. What is the cost if each segment's error is computed from scratch?</li>
+  </ol>
+  <p class="small muted">Groups · 15 min · for each: state in words, recurrence, base, order, complexity</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C2: critique these DP proposals</h2>
+  <ol class="small">
+    <li><strong>Circular robber.</strong> Houses \(1..n\) are on a <em>circle</em> (\(n\) is adjacent to 1). Maximise the loot, never robbing two adjacent houses. Proposal: \(R[i]=\max(R[i-1],R[i-2]+v_i)\), answer \(R[n]\). What is wrong? Fix it without adding a dimension.</li>
+    <li><strong>Longest increasing subsequence.</strong> Proposal: \(L[i]\) = the length of an LIS of \(a[1..i]\); \(L[i]=L[i-1]+1\) if \(a_i&gt;a_{i-1}\), else \(L[i-1]\). Give a counterexample and a correct state.</li>
+    <li><strong>Grid path with a budget.</strong> Maximise the collected value on a monotone path, with the total path <em>cost</em> \(\le B\). Proposal: \(V[i][j]\) = the best value at \((i,j)\), keeping only paths within budget. What does the two-histories test say?</li>
+  </ol>
+  <p class="small muted">Groups · 10 min</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>DP = paths in a DAG of states: order = topological order; cost = #states × transition cost.</li>
+      <li>The state must remember exactly what the future depends on. Apply the <strong>two-histories test</strong>.</li>
+      <li>Correctness = state semantics + case analysis on the last decision + cut-and-paste + base cases.</li>
+      <li>LCS/edit distance: prefix-pair states, \(\Theta(nm)\); linear space for values, Hirschberg for alignments. MCM: interval states, \(\Theta(n^3)\).</li>
+      <li>"There is a DP" does not mean "this is the best algorithm": fine-grained lower bounds, and better special-case algorithms.</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L07 (Sat 07 Nov)</span>
+      Harder state modelling (LIS in \(n\log n\), weighted interval scheduling), state and transition optimisation, space optimisation, dominance, 0/1 knapsack and <strong>pseudo-polynomial time</strong>: the bridge to NP-hardness.
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> KT 6.1, 6.4; CLRS 4e 14 problems. <strong>PS2 due Sat 07 Nov.</strong> Midterm (L01–L07) working date Sat 14 Nov, separate exam slot.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

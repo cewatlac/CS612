@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L04 — Hashing &amp; Randomized Data Structures (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 04 · Sat 17 Oct 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 04<br>Hashing &amp; Randomized Data Structures</h1>
+  <p>"\(O(1)\) expected" and "\(O(\log n)\) expected": expected over what, and what happens when someone chooses your keys?</p>
+  <div class="meta">Saturday 17 October 2026 · 3 hours<br>Due today: PS1 · Project M1 (team + topic)</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Where we are</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>L03 gave us</h3>
+      <ul>
+        <li>Expected time \(=\max_x\mathbb E_r[T(x,r)]\): worst-case input, our coins</li>
+        <li>Guarantees hold against an <strong>oblivious</strong> adversary</li>
+        <li>Indicators + linearity; Markov; amplification</li>
+      </ul>
+    </div>
+    <div class="box key">
+      <span class="label">Today</span>
+      Apply the same idea to <strong>data structures</strong>: choose the hash function (or the tower heights) at random, so that no fixed set of keys is bad. Then compare with deterministic worst-case structures.
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating incident: hash flooding (2011)</h2>
+  <div class="cols wide-l">
+    <div class="small">
+      <p>At the 28C3 conference (Dec 2011), Klink and Wälde showed that many web platforms (PHP, Java, Python, Ruby, ASP.NET…) stored HTTP POST parameters in hash tables with a <strong>fixed, public</strong> hash function.</p>
+      <ul>
+        <li>An attacker sends one request with \(n\) parameter names that all collide.</li>
+        <li>Each insert scans the whole chain: \(\Theta(n^2)\) total.</li>
+        <li>A ~2 MB request could keep a CPU core busy for tens of seconds or more.</li>
+      </ul>
+      <p>Fixes shipped: randomized (seeded) hash functions, and limits on the number of parameters.</p>
+    </div>
+    <div class="box q small"><span class="label">Discuss · 3 min</span>
+      The hash tables were "\(O(1)\) expected". Which assumption behind that claim did the attacker violate? What exactly must a fix randomize?</div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>Universal hashing</h1>
+  <p>From "assume random keys" to "choose a random function"</p>
+</section>
+
+<section class="slide">
+  <h2>Every fixed hash function has a bad input</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Universe \(U\) of keys, table size \(m\), fixed \(h:U\to\{0,\dots,m-1\}\).</p>
+      <div class="box thm"><span class="label">Pigeonhole</span>Some slot receives at least \(|U|/m\) keys. If \(|U|\ge nm\), there are \(n\) keys that <strong>all</strong> hash to the same slot.</div>
+      <p>For \(h(k)=k\bmod 2^{16}\): all multiples of \(2^{16}\) (aligned addresses, IDs with low bits zero, timestamps rounded to seconds…).</p>
+    </div>
+    <div class="small">
+      <p><strong>Two ways to get "expected \(O(1)\)":</strong></p>
+      <table class="tight">
+        <tr><th></th><th>Randomness</th><th>Holds for</th></tr>
+        <tr><td>Simple uniform hashing (CLRS 11.2)</td><td>assumed in the <strong>keys</strong></td><td>"typical" key sets only</td></tr>
+        <tr class="hl"><td>Universal hashing</td><td>in the <strong>choice of \(h\)</strong></td><td><strong>every</strong> key set fixed in advance</td></tr>
+      </table>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Universal families</h2>
+  <div class="box defn small"><span class="label">Definition (Carter &amp; Wegman 1979)</span>A family \(\mathcal H\) of functions \(U\to\{0,\dots,m-1\}\) is <strong>universal</strong> if for all \(x\ne y\in U\):
+    \[\Pr_{h\in\mathcal H}\big[h(x)=h(y)\big]\le\frac1m .\]
+    (Probability over a uniformly random choice of \(h\); the keys are <em>fixed</em>.)</div>
+  <div class="box thm small"><span class="label">Theorem</span>Chaining, \(h\) drawn from a universal family, any fixed set \(S\) of \(n\) keys, load factor \(\alpha=n/m\). For any key \(x\), the expected number of keys of \(S\setminus\{x\}\) in \(x\)'s chain is \(\le\alpha\). So a search costs expected \(O(1+\alpha)\).</div>
+  <div class="box proof small"><span class="label">Proof</span>Let \(C_y=\mathbb 1[h(y)=h(x)]\). The chain length is \(\sum_{y\in S\setminus\{x\}}C_y\), and by linearity \(\mathbb E=\sum_y\Pr[h(y)=h(x)]\le\frac{n}{m}\).</div>
+  
+</section>
+
+<section class="slide">
+  <h2>A universal family and why it works</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Pick a prime \(p&gt;\) every key. For \(a\in\{1,\dots,p-1\}\), \(b\in\{0,\dots,p-1\}\):</p>
+      \[h_{a,b}(k)=\big((ak+b)\bmod p\big)\bmod m .\]
+      <p><strong>Proof idea.</strong> Fix \(x\ne y\). Let \(r=(ax+b)\bmod p\) and \(s=(ay+b)\bmod p\).</p>
+      <ol>
+        <li>\(r\ne s\), since \(r-s\equiv a(x-y)\not\equiv0\) (\(p\) is prime).</li>
+        <li>The map \((a,b)\mapsto(r,s)\) is a <strong>bijection</strong> onto pairs with \(r\ne s\): solve \(a=(r-s)(x-y)^{-1}\), \(b=r-ax\).</li>
+        <li>So \((r,s)\) is uniform over the \(p(p-1)\) pairs with \(r\ne s\). For each \(r\), at most \(\lceil p/m\rceil-1\le\frac{p-1}{m}\) values \(s\ne r\) have \(s\equiv r\pmod m\).</li>
+      </ol>
+      <p>Hence \(\Pr[\text{collision}]\le\frac{p(p-1)/m}{p(p-1)}=\frac1m\).</p>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">In practice: multiply-shift</span>
+        \(m=2^\ell\), \(w\)-bit keys, random <strong>odd</strong> \(a\):
+        \[h_a(k)=\big(a\cdot k\bmod 2^w\big)\gg(w-\ell).\]
+        One multiplication and one shift. \(\Pr[\text{collision}]\le\frac2m\) (Dietzfelbinger et al. 1997): "universal up to a factor 2". It is used in today's experiment.
+      </div>
+      <div class="box warn">Integer division by a prime is slow, which is why fast hash tables use multiply-shift or tabulation hashing. Strings need polynomial hashing (L11).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Open addressing: more independence needed</h2>
+  <div class="cols small">
+    <div>
+      <ul>
+        <li>R4: unsuccessful search in open addressing costs \(\le\frac1{1-\alpha}\) expected probes under <strong>uniform hashing</strong>, an idealised assumption (every probe sequence is a random permutation).</li>
+        <li>For <strong>linear probing</strong> with a real hash family, pairwise universality is <em>not</em> enough: some 2-universal families give \(\Theta(\log n)\) expected probes.</li>
+        <li><strong>5-independent</strong> families give expected \(O(1)\) (Pagh, Pagh, Ružić 2007); simple tabulation hashing also works (Pătraşcu &amp; Thorup 2012).</li>
+      </ul>
+    </div>
+    <div class="box key"><span class="label">Take-away</span>
+      "Expected \(O(1)\)" depends on <strong>which</strong> randomness assumption: fully random, \(k\)-independent, universal. Chaining needs only universal hashing. Linear probing needs more. The worst case is \(\Theta(n)\) for all of them.
+      <p class="xsmall" style="margin-top:8px">Linear probing is often faster in practice (cache locality). The theory explains what it requires.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: attack and defend</h2>
+  <ol class="small">
+    <li>A table uses \(m=1000\) and \(h(k)=k\bmod1000\). Give 100 distinct keys that all collide. Then give a key set that looks "natural" but still causes heavy collisions.</li>
+    <li>With \(h_{a,b}\) (\(p=10007\), \(m=1000\)), compute the expected number of <strong>colliding pairs</strong> among \(n=1000\) fixed keys. What is the expected number of keys sharing a slot with a given key \(x\)?</li>
+    <li>A developer picks \(a,b\) at random <strong>once</strong> and hard-codes them into the open-source library. Is the table still protected? Against whom?</li>
+    <li>Why is \(h(k)=(ak\bmod p)\bmod m\) with <strong>fixed</strong> \(a\) not universal, even though it "looks random"?</li>
+  </ol>
+  <p class="small muted">Pairs · 8 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Perfect hashing and skip lists</h1>
+  <p>Worst-case \(O(1)\) for static sets · randomized balancing for ordered sets</p>
+</section>
+
+<section class="slide">
+  <h2>Perfect hashing (Fredman, Komlós, Szemerédi 1984)</h2>
+  <div class="cols wide-r mid">
+    <div class="small">
+      <p><strong>Static</strong> set of \(n\) keys: build once, then only lookups.</p>
+      <ol>
+        <li><strong>Level 1:</strong> hash into \(m=n\) buckets with a universal \(h\). Bucket \(j\) gets \(n_j\) keys. Retry while \(\sum_j n_j^2&gt;4n\).</li>
+        <li><strong>Level 2:</strong> bucket \(j\) gets its own table of size \(n_j^2\) with its own universal \(h_j\). Retry until it has <strong>no collisions</strong>.</li>
+      </ol>
+      <p><strong>Lookup:</strong> two hash evaluations, one comparison: <strong>worst-case \(O(1)\)</strong>.</p>
+    </div>
+    <svg viewBox="0 0 470 300" width="450">
+      <g font-size="14">
+        <g fill="#fff" stroke="#172b45" stroke-width="2">
+          <rect x="20" y="20" width="60" height="40"/><rect x="20" y="60" width="60" height="40"/><rect x="20" y="100" width="60" height="40"/><rect x="20" y="140" width="60" height="40"/><rect x="20" y="180" width="60" height="40"/><rect x="20" y="220" width="60" height="40"/>
+        </g>
+        <text x="50" y="14" text-anchor="middle" fill="#46505e">level 1 (m = n)</text>
+        <g fill="#e6eff8" stroke="#1f5f99" stroke-width="2">
+          <rect x="150" y="60" width="36" height="40"/><rect x="186" y="60" width="36" height="40"/><rect x="222" y="60" width="36" height="40"/><rect x="258" y="60" width="36" height="40"/>
+          <rect x="150" y="180" width="36" height="40"/>
+          <rect x="150" y="140" width="36" height="40"/><rect x="186" y="140" width="36" height="40"/><rect x="222" y="140" width="36" height="40"/><rect x="258" y="140" width="36" height="40"/><rect x="294" y="140" width="36" height="40"/><rect x="330" y="140" width="36" height="40"/><rect x="366" y="140" width="36" height="40"/><rect x="402" y="140" width="36" height="40"/><rect x="438" y="140" width="30" height="40"/>
+        </g>
+        <line class="edge" x1="80" y1="80" x2="150" y2="80"/><line class="edge" x1="80" y1="160" x2="150" y2="160"/><line class="edge" x1="80" y1="200" x2="150" y2="200"/>
+        <text x="300" y="52" fill="#46505e">n_j = 2 → 4 slots</text>
+        <text x="300" y="132" fill="#46505e">n_j = 3 → 9 slots</text>
+        <text x="195" y="212" fill="#46505e">n_j = 1 → 1 slot</text>
+        <text x="235" y="290" text-anchor="middle" fill="#1f5f99">each level-2 table: own random h_j, no collisions</text>
+      </g>
+    </svg>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Why FKS works: two expectations</h2>
+  <div class="small">
+    <div class="box proof"><span class="label">Level 2: a table of size \(n_j^2\) is collision-free with probability \(\ge\frac12\)</span>
+      Expected colliding pairs \(=\binom{n_j}{2}\cdot\frac{1}{n_j^2}&lt;\frac12\). By Markov, \(\Pr[\ge1\text{ collision}]&lt;\frac12\). So the expected number of retries is \(&lt;2\) (geometric).</div>
+    <div class="box proof"><span class="label">Level 1: total space \(\mathbb E\big[\sum_j n_j^2\big]&lt;2n\)</span>
+      \(\sum_j n_j^2=\sum_j\big(n_j+2\binom{n_j}{2}\big)=n+2\cdot\#\{\text{colliding pairs}\}\), so
+      \[\mathbb E\Big[\sum_j n_j^2\Big]\le n+2\binom n2\frac1n&lt;2n.\]
+      By Markov, \(\Pr\big[\sum n_j^2&gt;4n\big]&lt;\frac12\): expected \(&lt;2\) level-1 attempts.</div>
+    <div class="box key">Result: expected \(O(n)\) construction time, \(O(n)\) space, worst-case \(O(1)\) lookup. <strong>Quadratic space per bucket is affordable because the buckets are small on average.</strong></div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Skip lists (Pugh 1990): randomized balancing</h2>
+  <div class="cols">
+    <div class="small">
+      <ul>
+        <li>Level 0: a sorted linked list of all \(n\) keys.</li>
+        <li>Each key is promoted to the next level with probability \(\frac12\), independently: level \(L\) with \(\Pr[L\ge h]=2^{-h}\).</li>
+        <li><strong>Search:</strong> start at the top-left; move right while the next key is \(&lt;x\); otherwise drop down a level.</li>
+        <li><strong>Insert:</strong> search, flip coins for the height, splice into each level. <strong>Delete:</strong> unsplice. No rotations, no rebalancing.</li>
+        <li>Expected pointers: \(\sum_h n2^{-h}=2n\).</li>
+      </ul>
+    </div>
+    <svg viewBox="0 0 520 260" width="500">
+      <g font-size="14">
+        <g stroke="#46505e" stroke-width="2">
+          <line x1="30" y1="40" x2="330" y2="40"/><line x1="30" y1="100" x2="330" y2="100"/><line x1="330" y1="100" x2="490" y2="100"/>
+          <line x1="30" y1="160" x2="490" y2="160"/><line x1="30" y1="220" x2="490" y2="220"/>
+        </g>
+        <g fill="#fff" stroke="#172b45" stroke-width="2">
+          <rect x="10" y="25" width="30" height="210" fill="#eef1f5"/>
+          <circle cx="90" cy="220" r="14"/><circle cx="150" cy="220" r="14"/><circle cx="150" cy="160" r="14"/>
+          <circle cx="210" cy="220" r="14"/><circle cx="270" cy="220" r="14"/><circle cx="270" cy="160" r="14"/><circle cx="270" cy="100" r="14"/>
+          <circle cx="330" cy="220" r="14"/><circle cx="330" cy="160" r="14"/><circle cx="330" cy="100" r="14"/><circle cx="330" cy="40" r="14"/>
+          <circle cx="390" cy="220" r="14"/><circle cx="450" cy="220" r="14"/><circle cx="450" cy="160" r="14"/>
+        </g>
+        <g text-anchor="middle">
+          <text x="90" y="225">3</text><text x="150" y="225">7</text><text x="150" y="165">7</text><text x="210" y="225">12</text>
+          <text x="270" y="225">19</text><text x="270" y="165">19</text><text x="270" y="105">19</text>
+          <text x="330" y="225">25</text><text x="330" y="165">25</text><text x="330" y="105">25</text><text x="330" y="45">25</text>
+          <text x="390" y="225">31</text><text x="450" y="225">40</text><text x="450" y="165">40</text>
+        </g>
+        <path d="M25 40 L25 100 L270 100 L270 220 L330 220" fill="none" stroke="#1f5f99" stroke-width="4" opacity=".6"/>
+        <text x="260" y="252" text-anchor="middle" fill="#1f5f99">search(25): →19 at level 2 … </text>
+      </g>
+    </svg>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Skip-list analysis: expected \(O(\log n)\), <em>not</em> worst case</h2>
+  <div class="small">
+    <div class="cols">
+      <div class="box thm"><span class="label">Height</span>\(H=\max_x L_x\). Union bound: \(\Pr[H\ge h]\le n2^{-h}\). So \(\Pr[H\ge3\log_2n]\le n^{-2}\) and \(\mathbb E[H]\le\log_2n+1\).</div>
+      <div class="box thm"><span class="label">Search cost (backward analysis)</span>Walk the search path <strong>backwards</strong> from the target. At each node, the path came from above with probability \(\frac12\) (the node was promoted) or from the left with probability \(\frac12\). Expected steps to climb one level \(=2\). Climbing \(\le H\) levels gives expected cost \(\le2(\log_2 n+1)+O(1)\).</div>
+    </div>
+    <div class="box bad"><span class="label">Worst case: \(\Theta(n)\)</span>If the coins give every key level 0, a search walks the whole list. This happens with tiny probability, but not zero. The legacy slides' "average <strong>and worst-case</strong> \(O(\log n)\)" is <strong>wrong</strong>.</div>
+    <p>The guarantee is over <strong>our coin flips</strong> for any fixed operation sequence (oblivious adversary). An adversary who sees the heights (e.g. through timing) can choose which keys to query.</p>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Deterministic vs. randomized balancing</h2>
+  <table class="small">
+    <tr><th></th><th>Red-black tree</th><th>Skip list</th><th>Treap (randomized BST)</th></tr>
+    <tr><td>Search/insert/delete</td><td>\(O(\log n)\) <strong>worst case</strong></td><td>\(O(\log n)\) <strong>expected</strong>, w.h.p.</td><td>\(O(\log n)\) expected</td></tr>
+    <tr><td>Restructuring per update</td><td>\(O(1)\) rotations + recolouring</td><td>none (local pointer splices)</td><td>expected \(O(1)\) rotations</td></tr>
+    <tr><td>Space</td><td>\(n\) nodes, 2 child pointers + colour</td><td>expected \(2n\) forward pointers</td><td>\(n\) nodes + priority</td></tr>
+    <tr><td>Ordered ops (range, successor)</td><td>yes</td><td>yes (level-0 list)</td><td>yes</td></tr>
+    <tr><td>Concurrency</td><td>hard (rotations touch several nodes)</td><td><strong>easier</strong>: lock-free designs exist (e.g. Java <code>ConcurrentSkipListMap</code>)</td><td>hard</td></tr>
+    <tr><td>Implementation effort</td><td>high (fix-up cases)</td><td>low</td><td>low</td></tr>
+  </table>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: quick derivations</h2>
+  <ol class="small">
+    <li>FKS: prove \(\sum_j n_j^2=n+2\cdot\#\{\text{colliding pairs}\}\).</li>
+    <li>Skip list with \(p=\frac14\): expected pointers per key? Expected height for \(n=10^6\)?</li>
+    <li>Why does the skip-list analysis fail if keys choose their own heights deterministically, e.g. level = number of trailing zeros of the key?</li>
+    <li>You are offered a skip list with "worst-case \(O(\log n)\) search". What would you ask the vendor?</li>
+  </ol>
+  <p class="small muted">Individually · 6 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Hash table vs. tree vs. skip list, measured</h1>
+  <p>Key distributions · adversarial keys · constants</p>
+</section>
+
+<section class="slide">
+  <h2>Experiment 1: fixed vs. random hash function</h2>
+  <div class="cols wide-l">
+    <div>
+      <table class="tight">
+        <tr><th>Key set (\(n=m=2^{16}\))</th><th>Hash</th><th class="num">max chain</th><th class="num">avg probes</th><th class="num">ms / \(10^6\) lookups</th></tr>
+        <tr><td>random 64-bit</td><td>\(k\bmod m\)</td><td class="num">8</td><td class="num">1.50</td><td class="num">11.4</td></tr>
+        <tr><td>random 64-bit</td><td>multiply-shift</td><td class="num">8</td><td class="num">1.50</td><td class="num">11.1</td></tr>
+        <tr><td>sequential \(0..n-1\)</td><td>\(k\bmod m\)</td><td class="num">1</td><td class="num">1.00</td><td class="num">5.0</td></tr>
+        <tr><td>sequential \(0..n-1\)</td><td>multiply-shift</td><td class="num">3</td><td class="num">1.36</td><td class="num">9.5</td></tr>
+        <tr class="hl"><td>multiples of \(2^{16}\)</td><td>\(k\bmod m\)</td><td class="num">65,536</td><td class="num">32,772</td><td class="num">9,218</td></tr>
+        <tr><td>multiples of \(2^{16}\)</td><td>multiply-shift</td><td class="num">2</td><td class="num">1.18</td><td class="num">7.7</td></tr>
+      </table>
+      <p class="xsmall muted">Chaining with vectors, load factor 1; <code>Student_Resources/hashing_skiplist_bench.cpp</code>, g++ 15.2 -O2.</p>
+    </div>
+    <div class="box q small"><span class="label">Interpret · 4 min</span>
+      <p>1. Why is \(k\bmod m\) <em>better</em> than random on sequential keys?</p>
+      <p>2. Predict the "avg probes" value 32,772 from theory.</p>
+      <p>3. Which rows could an average-case analysis have predicted, and which not?</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Experiment 2: skip list vs. RB tree vs. hash table</h2>
+  <table class="xtight">
+    <tr><th>\(n=10^6\), insert order</th><th class="num">skip list ins</th><th class="num">skip list find</th><th class="num">std::map ins</th><th class="num">std::map find</th><th class="num">unordered_map ins</th><th class="num">unordered_map find</th><th class="num">SL height</th><th class="num">SL forward steps / find</th></tr>
+    <tr><td>random</td><td class="num">1924</td><td class="num">1759</td><td class="num">966</td><td class="num">990</td><td class="num">178</td><td class="num">36</td><td class="num">22</td><td class="num">18.7</td></tr>
+    <tr><td>sorted</td><td class="num">206</td><td class="num">1302</td><td class="num">138</td><td class="num">746</td><td class="num">121</td><td class="num">29</td><td class="num">22</td><td class="num">18.9</td></tr>
+  </table>
+  <p class="xsmall muted">Times in ms for \(10^6\) operations; lookups in random order; \(\log_2 n=19.9\). Straightforward skip list (per-node <code>std::vector</code>, \(p=\frac12\)); <code>std::map</code> is a red-black tree.</p>
+  <div class="cols small">
+    <div class="box key"><span class="label">Theory confirmed</span>Height 22 ≈ \(\log_2 n+2\); forward steps ≈ \(\log_2 n\), independent of insertion order.</div>
+    <div class="box q"><span class="label">Discuss · 5 min</span>(1) Why is the skip list ~2× slower than <code>std::map</code> although both are \(O(\log n)\)? (2) Why is sorted insertion so much faster for both? (3) What would you need to know before choosing <code>unordered_map</code>?</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: choose the structure</h2>
+  <ol class="small">
+    <li>A rate limiter keyed by client IP address; attackers control the source addresses; 1M active keys; p99 latency budget of 50 µs.</li>
+    <li>A game leaderboard: 10M players, score updates at 50k/s, queries "rank of player X" and "players ranked 1000–1100".</li>
+    <li>A spell checker's dictionary: 500k words, loaded once at startup, 10⁸ lookups per day.</li>
+    <li>An in-memory ordered index shared by 32 threads with frequent inserts and range scans.</li>
+  </ol>
+  <div class="box q small"><span class="label">Groups · 12 min</span>For each: the structure, its guarantee <strong>with type</strong>, the assumption that guarantee needs, and what would change your choice.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>Every fixed hash function has a bad key set (pigeonhole). "Expected \(O(1)\)" with a fixed \(h\) is an assumption about the keys.</li>
+      <li><strong>Universal hashing</strong>: \(\Pr_h[h(x)=h(y)]\le\frac1m\) ⇒ expected chain \(\le1+\alpha\) for <em>every</em> fixed key set. Keep the seed secret.</li>
+      <li><strong>Perfect hashing</strong>: static set, worst-case \(O(1)\) lookups, expected \(O(n)\) construction; \(\mathbb E\sum n_j^2&lt;2n\).</li>
+      <li><strong>Skip lists</strong>: expected (and w.h.p.) \(O(\log n)\); worst case \(\Theta(n)\). Simple, ordered, concurrency-friendly.</li>
+      <li>Measured constants and memory layout often dominate between structures with the same \(O(\cdot)\).</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L05 (Sat 24 Oct)</span>
+      Augmented data structures (rank, select, intervals) and amortized analysis (aggregate, accounting, potential): what "\(O(1)\) amortized" really promises.
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> CLRS 4e Ch. 16–17; R3. <strong>PS2</strong> released next week; <strong>M2</strong> (problem + hypotheses) due next week.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

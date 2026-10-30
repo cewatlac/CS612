@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L07 — Dynamic Programming II: Optimization &amp; Pseudo-Polynomial Algorithms (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 07 · Sat 07 Nov 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 07<br>Dynamic Programming II —<br>Optimization &amp; Pseudo-Polynomial Algorithms</h1>
+  <p>Better states, faster transitions, less memory, and the moment a "polynomial" DP turns out to be exponential.</p>
+  <div class="meta">Saturday 7 November 2026 · 3 hours<br>PS2 due today · Midterm (L01–L07) working date Sat 14 Nov</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem: same problem, different units</h2>
+  <div class="cols">
+    <div class="small">
+      <p>A scheduler packs 100 jobs onto a server to maximise priority value, subject to memory capacity.</p>
+      <table class="tight">
+        <tr><th>Memory measured in…</th><th class="num">capacity \(W\)</th><th class="num">\(O(nW)\) DP work</th></tr>
+        <tr><td>GB</td><td class="num">256</td><td class="num">\(2.6\times10^4\)</td></tr>
+        <tr><td>MB</td><td class="num">262,144</td><td class="num">\(2.6\times10^7\)</td></tr>
+        <tr class="hl"><td>bytes</td><td class="num">\(2.7\times10^{11}\)</td><td class="num">\(2.7\times10^{13}\)</td></tr>
+      </table>
+      <p>The input grew by a few <em>characters</em>. The running time grew by a factor of \(10^9\).</p>
+    </div>
+    <div class="box q small"><span class="label">Discuss · 3 min</span>
+      <p>Is the \(O(nW)\) knapsack DP a polynomial-time algorithm? What is the size of the input "\(W=274877906944\)"?</p>
+      <p>What would you do if the job sizes really are only known to the byte?</p>
+    </div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>Harder state modelling</h1>
+  <p>Weighted intervals · LIS in \(O(n\log n)\) · transition and state reduction</p>
+</section>
+
+<section class="slide">
+  <h2>Weighted interval scheduling</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Intervals \(j=1..n\) sorted by finish time, with values \(v_j\). Choose compatible intervals of maximum total value.</p>
+      <p>\(p(j)\) = the largest index \(i&lt;j\) with \(f_i\le s_j\) (0 if none): computable by binary search.</p>
+      \[OPT(j)=\max\big(OPT(j-1),\ v_j+OPT(p(j))\big),\quad OPT(0)=0.\]
+      <p><strong>Last decision:</strong> is interval \(j\) (the last to finish) in the solution? If yes, the rest is an optimal solution among intervals compatible with \(j\), namely \(1..p(j)\). If no, it is an optimal solution among \(1..j-1\).</p>
+      <p>\(O(n\log n)\): sort + binary searches; the DP itself is \(O(n)\).</p>
+    </div>
+    <div class="stack small">
+      <div class="box warn"><span class="label">Why not greedy?</span>Earliest finish is optimal for the <em>unweighted</em> version (L01, L08). With weights: \([0,10)\) of value 10 vs. \([0,1),[1,2)\) of values 1, 1. Earliest finish takes 2, but the optimum is 10. Greedy by value or by value/length also fails (exercise).</div>
+      <div class="box key"><span class="label">Modelling point</span>Sorting by finish time is what makes "the last interval" a well-defined last decision, and makes the state a single index.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>LIS: changing the state changes the complexity</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>State 1</strong> (L06): \(E[i]\) = the LIS length <em>ending at</em> \(i\). \(E[i]=1+\max_{j&lt;i,a_j&lt;a_i}E[j]\): \(O(n^2)\).</p>
+      <p><strong>State 2:</strong> after processing \(a_1..a_i\), let</p>
+      \[T[k]=\min\{\text{last element of an increasing subsequence of length }k\}.\]
+      <pre class="pseudo ln sm">LIS(a)
+  T = empty array
+  for x in a
+      k = first index with T[k] ≥ x    ▷ binary search
+      if none: append x to T
+      else:    T[k] = x
+  return length(T)</pre>
+    </div>
+    <div class="stack small">
+      <div class="box defn"><span class="label">Invariant</span>\(T\) is strictly increasing, and \(T[k]\) has the meaning above for the processed prefix.</div>
+      <div class="box proof"><span class="label">Maintenance</span>A new \(x\) can extend exactly the subsequences whose last element is \(&lt;x\). The longest such has length \(k-1\), where \(k\) is the first index with \(T[k]\ge x\). So a length-\(k\) subsequence ending in \(x\) exists, and \(x\le T[k]\) improves (or keeps) \(T[k]\). No other entry can improve. Strictness is kept because \(T[k-1]&lt;x\le T[k]\).</div>
+      <div class="box key">\(O(n\log n)\). The state changed from "position" to "best tail per length": a <strong>dominance</strong> argument. Only the smallest tail per length matters.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Three ways to make a DP cheaper</h2>
+  <table class="small">
+    <tr><th>Technique</th><th>Idea</th><th>Example</th></tr>
+    <tr><td><strong>State reduction</strong></td><td>Remove information the future does not need, or merge dominated states</td><td>LIS \(E[i]\to T[k]\); knapsack Pareto lists (Block B)</td></tr>
+    <tr><td><strong>Transition optimisation</strong></td><td>Compute each \(\min/\max\) over predecessors faster, using monotonicity or a data structure</td><td>binary search (LIS, weighted intervals); prefix-max with a Fenwick tree; Knuth's optimisation for interval DPs (\(O(n^3)\to O(n^2)\)); convex-hull trick</td></tr>
+    <tr><td><strong>Space optimisation</strong></td><td>Keep only the part of the table the evaluation order still needs</td><td>two rows for LCS/edit distance; one row for knapsack (iterate \(c\) downwards); Hirschberg for reconstruction</td></tr>
+  </table>
+  <div class="box warn small" style="margin-top:12px">Each technique needs its own correctness argument: a monotonicity lemma, a dominance lemma, or a proof that the discarded values are never read again.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: model it</h2>
+  <ol class="small">
+    <li>Weighted intervals: show that greedy by <strong>largest value</strong> and greedy by <strong>largest value per unit length</strong> both fail. (Give explicit instances with costs.)</li>
+    <li><strong>Russian dolls.</strong> Envelopes \((w_i,h_i)\). One fits inside another iff both dimensions are strictly smaller. Find the longest nesting chain in \(O(n\log n)\). (Hint: sort cleverly, then reduce to LIS.)</li>
+    <li><strong>Counting.</strong> Modify the \(O(n^2)\) LIS DP to count <em>the number</em> of longest increasing subsequences. What must each state now store?</li>
+  </ol>
+  <p class="small muted">Pairs · 10 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Knapsack and pseudo-polynomial time</h1>
+  <p>Correctness · space · memo vs. tabulation · dominance · encoding</p>
+</section>
+
+<section class="slide">
+  <h2>0/1 knapsack: the DP and its correctness</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Items \(1..n\) with integer weights \(w_i\) and values \(v_i\); capacity \(W\).</p>
+      <p><strong>State:</strong> \(K[i][c]\) = the maximum value using a subset of items \(1..i\) with total weight \(\le c\).</p>
+      \[K[i][c]=\max\big(K[i-1][c],\ v_i+K[i-1][c-w_i]\ (\text{if }w_i\le c)\big),\quad K[0][c]=0.\]
+      <p><strong>Time</strong> \(\Theta(nW)\) · <strong>space</strong> \(\Theta(nW)\) → \(\Theta(W)\):</p>
+      <pre class="pseudo sm">for i = 1 to n
+    for c = W downto w[i]          ▷ downwards!
+        K[c] = max(K[c], K[c − w[i]] + v[i])</pre>
+    </div>
+    <div class="stack small">
+      <div class="box q"><span class="label">Ask</span>Why must \(c\) go <strong>downwards</strong> in the 1-D version? What problem do you solve if it goes upwards?</div>
+      <div class="box warn"><span class="label">Greedy fails</span>By value density: \(W=10\); items \((w,v)=(6,7),(5,5),(5,5)\). Densities \(1.17,1,1\): greedy takes item 1 (value 7) and nothing else fits; the optimum is items 2+3 (value 10). Greedy <em>is</em> optimal for the <strong>fractional</strong> knapsack.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Memoization vs. tabulation: an engineering decision</h2>
+  <table class="small">
+    <tr><th></th><th>Memoization (top-down)</th><th>Tabulation (bottom-up)</th></tr>
+    <tr><td>States computed</td><td>only those <strong>reachable</strong> from the goal</td><td>all states in the table</td></tr>
+    <tr><td>Evaluation order</td><td>implicit (recursion)</td><td>must be designed (topological)</td></tr>
+    <tr><td>Space reduction</td><td>hard (needs every cached state)</td><td>easy (rows/diagonals)</td></tr>
+    <tr><td>Overheads</td><td>recursion, hash map lookups, stack depth \(O(n)\)</td><td>tight loops; cache-friendly; vectorisable</td></tr>
+    <tr><td>Knapsack with huge \(W\) but few items</td><td class="hl">visits \(\le\min(nW,\,2^{n+1})\) states</td><td>allocates \(nW\) regardless</td></tr>
+  </table>
+  <div class="box key small" style="margin-top:12px">Neither choice changes the worst-case bound. They differ in which states are touched, memory, and constants. Choose by the <strong>sparsity</strong> of the reachable states and by memory limits.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Dominance: Pareto sets instead of a \(W\)-sized table</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Represent the partial solutions over items \(1..i\) as (weight, value) pairs. Pair \((w,v)\) <strong>dominates</strong> \((w',v')\) if \(w\le w'\) and \(v\ge v'\). A dominated pair can never lead to a better final solution: discard it.</p>
+      <pre class="pseudo sm">P0 = {(0,0)}
+for i = 1 to n
+    Q = P(i−1) ∪ {(w + w_i, v + v_i) : (w,v) ∈ P(i−1), w + w_i ≤ W}
+    P(i) = the non-dominated pairs of Q   ▷ merge of 2 sorted lists: O(|Q|)</pre>
+      <p>Time \(O\big(\sum_i|P_i|\big)\) (Nemhauser–Ullmann 1969). Worst case exponential, but independent of \(W\), and often small on real data.</p>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">Value-indexed DP</span>If values are small integers: \(M[i][v]\) = the minimum weight to achieve value exactly \(v\) with items \(1..i\). \(O(n\cdot\sum v_i)\) time, independent of \(W\). This is the basis of the knapsack <strong>FPTAS</strong> (L14): round the values, then use this DP.</div>
+      <div class="box plain">Which one to use depends on which number is small: \(W\), \(\sum v_i\), or the Pareto frontier.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Input size and pseudo-polynomial time</h2>
+  <div class="small">
+    <div class="box defn"><span class="label">Definitions</span>An algorithm is <strong>polynomial</strong> if its running time is polynomial in the input <em>length</em> (bits). It is <strong>pseudo-polynomial</strong> if it is polynomial in the input length <em>and the numeric values</em> of the input, equivalently, polynomial when the numbers are written in <strong>unary</strong>.</div>
+    <div class="cols">
+      <div>
+        <ul>
+          <li>Knapsack input: \(O(n\log W+\sum_i(\log w_i+\log v_i))\) bits.</li>
+          <li>\(O(nW)=O(n\cdot2^{\log W})\): exponential in the bits of \(W\).</li>
+          <li>Polynomial when \(W\le n^{c}\) (or the numbers are given in unary).</li>
+        </ul>
+        <p><strong>Consequence (L13):</strong> knapsack and subset sum are NP-complete, but only <strong>weakly</strong>. Their hardness needs large numbers. <strong>Strongly</strong> NP-hard problems (e.g. TSP, 3-partition) stay hard even with numbers bounded by a polynomial in \(n\).</p>
+      </div>
+      <div class="box warn"><span class="label">A pseudo-polynomial algorithm does not prove P = NP</span>An \(O(nT)\) algorithm for subset sum is exponential on instances with \(T\approx2^n\), which are exactly the hard instances produced by the NP-hardness reduction (L13).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: which knapsack algorithm?</h2>
+  <table class="small">
+    <tr><th>Instance</th><th>\(n\)</th><th>\(W\)</th><th>values</th><th>Your method + cost</th></tr>
+    <tr><td>(a)</td><td>200</td><td>\(10^5\)</td><td>up to \(10^9\)</td><td></td></tr>
+    <tr><td>(b)</td><td>200</td><td>\(10^{12}\)</td><td>integers ≤ 100</td><td></td></tr>
+    <tr><td>(c)</td><td>40</td><td>\(10^{15}\)</td><td>up to \(10^{15}\)</td><td></td></tr>
+    <tr><td>(d)</td><td>5000</td><td>\(10^{12}\)</td><td>up to \(10^{12}\); weights ≈ values ± 1%</td><td></td></tr>
+  </table>
+  <p class="small muted">Pairs · 8 min · justify each with the dominant term</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Evidence and problem solving</h1>
+  <p>What the numbers say · midterm-style practice</p>
+</section>
+
+<section class="slide">
+  <h2>Experiment: state design and encoding, measured</h2>
+  <div class="cols">
+    <div>
+      <table class="tight">
+        <tr><th>LIS, random permutation \(n\)</th><th class="num">\(O(n^2)\) ms</th><th class="num">\(O(n\log n)\) ms</th><th class="num">LIS</th></tr>
+        <tr><td>5,000</td><td class="num">30.9</td><td class="num">0.1</td><td class="num">135</td></tr>
+        <tr><td>20,000</td><td class="num">496.8</td><td class="num">0.6</td><td class="num">273</td></tr>
+        <tr><td>50,000</td><td class="num">3,090</td><td class="num">1.9</td><td class="num">432</td></tr>
+        <tr><td>1,000,000</td><td class="num">–</td><td class="num">42.0</td><td class="num">1,975</td></tr>
+      </table>
+      <table class="tight" style="margin-top:12px">
+        <tr><th>Knapsack, \(n=100\), capacity \(W\)</th><th class="num">bits(\(W\))</th><th class="num">DP ms</th><th class="num">table</th></tr>
+        <tr><td>\(10^3\)</td><td class="num">10</td><td class="num">0.1</td><td class="num">8 KB</td></tr>
+        <tr><td>\(10^5\)</td><td class="num">17</td><td class="num">5.7</td><td class="num">0.8 MB</td></tr>
+        <tr><td>\(10^7\)</td><td class="num">24</td><td class="num">1,271</td><td class="num">80 MB</td></tr>
+        <tr class="hl"><td>\(10^8\)</td><td class="num">27</td><td class="num">15,108</td><td class="num">800 MB</td></tr>
+      </table>
+      <p class="xsmall muted"><code>Student_Resources/dp2_bench.cpp</code>, g++ 15.2 -O2.</p>
+    </div>
+    <div class="box q small"><span class="label">Interpret · 5 min</span>
+      <p>1. LIS: the \(O(n^2)\) column grows ×16 when \(n\) grows ×4. Consistent?</p>
+      <p>2. Knapsack: \(W\) ×10 from \(10^7\) to \(10^8\), but time ×12. Why not exactly ×10?</p>
+      <p>3. Add 3 bits to \(W\): what happens to the time? Add 3 items?</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: midterm-style practice</h2>
+  <ol class="small">
+    <li><strong>Optimal BST.</strong> Keys \(k_1&lt;\dots&lt;k_n\) are searched with frequencies \(f_1..f_n\); a search for \(k_i\) costs (depth of \(k_i\)) + 1. Build the BST minimising the total cost. Give the state, recurrence, base cases, order and complexity, and justify the "choice of root" case.</li>
+    <li><strong>Coin change (minimum coins)</strong> with coin values \(c_1..c_k\) and target \(T\). Give the DP. Is it polynomial? When is greedy optimal? (Give a coin system where it is not.)</li>
+    <li><strong>Critique.</strong> A student claims: "Subset sum with \(n\) numbers each at most \(n^2\) is solvable in polynomial time." True or false? Justify precisely.</li>
+    <li><strong>Space.</strong> Edit distance for two strings of length \(10^6\): which quantities can you compute in 16 MB of memory, and how?</li>
+  </ol>
+  <p class="small muted">Groups · 15 min</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>A better <strong>state</strong> can change the complexity (LIS: \(n^2\to n\log n\) via dominance).</li>
+      <li>Optimise in three ways: state reduction, transition speed-ups (monotonicity, data structures), space reduction. Each needs its own proof.</li>
+      <li>Memoization vs. tabulation: same worst case; different reachable states, memory and constants.</li>
+      <li>Knapsack: \(O(nW)\), \(O(n\sum v)\), Pareto lists, meet-in-the-middle. Choose by which number is small.</li>
+      <li><strong>Pseudo-polynomial</strong> = polynomial in the numeric values, exponential in their bit length. That is the gateway to weak vs. strong NP-hardness.</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next · L08 (Sat 14 Nov)</span>
+      Greedy algorithms: exchange and staying-ahead proofs, counterexamples, Huffman coding, matroids.
+      <p class="xsmall" style="margin-top:8px"><strong>Midterm</strong> (L01–L07, 90 min): working date Sat 14 Nov, in a separate exam slot (L08 is a full lecture); time, room and materials announced in Classroom. <strong>Project M3</strong> (design/methodology) due Sat 14 Nov.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

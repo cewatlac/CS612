@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L01 — Advanced Algorithm Analysis, Correctness &amp; Lower Bounds (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 01 · Sat 26 Sep 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 01<br>Advanced Algorithm Analysis,<br>Correctness &amp; Lower Bounds</h1>
+  <p>What exactly are we claiming when we say an algorithm is "efficient" and "correct" — and how do we prove that no algorithm can do better?</p>
+  <div class="meta">Saturday 26 September 2026 · 3 hours</div>
+  
+</section>
+
+<section class="slide">
+  <h2>How CS612 works</h2>
+  <div class="cols wide-l">
+    <div class="small">
+      <ul>
+        <li><strong>14 lectures × 3 h</strong>, every Saturday, 26 Sep – 26 Dec</li>
+        <li>Each lecture: motivating problem → <strong>Block A</strong> technique → <strong>Block B</strong> proof / deep case → <strong>Block C</strong> design, critique or experiment → synthesis</li>
+        <li>Undergraduate algorithms are <strong>assumed</strong>: refreshers R1–R7 are self-study</li>
+        <li>You will be asked to commit to answers in class. Being wrong here costs nothing.</li>
+      </ul>
+      <table class="tight">
+        <tr><th>Coursework (40)</th><th class="num">Marks</th></tr>
+        <tr><td>Midterm (Sat 14 Nov, L01–L07)</td><td class="num">10</td></tr>
+        <tr><td>Problem sets PS1–PS4 (2.5 each)</td><td class="num">10</td></tr>
+        <tr><td>Algorithm engineering project (team)</td><td class="num">15</td></tr>
+        <tr><td>Individual viva / presentation</td><td class="num">5</td></tr>
+        <tr class="hl"><td>Final exam (written, no MCQ)</td><td class="num">60</td></tr>
+      </table>
+    </div>
+    <div class="box key">
+      <span class="label">The course in one sentence</span>
+      Given a problem, its assumptions and its constraints: <strong>design</strong>, <strong>justify</strong>, <strong>analyse</strong>, <strong>compare</strong>, <strong>implement</strong> and <strong>experimentally evaluate</strong> an appropriate algorithmic solution.
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>The questions we will ask every week</h2>
+  <div class="cols c3 small">
+    <div class="card"><h3>Correctness</h3><p>Why does it work?<br>Can we <strong>prove</strong> it?<br>What are the edge cases?</p></div>
+    <div class="card"><h3>Guarantee</h3><p>Worst-case? Expected? Amortized? With high probability? Approximate?</p></div>
+    <div class="card"><h3>Assumptions</h3><p>Model of computation, input distribution, adversary, weights, key universe…<br>What changes if one is dropped?</p></div>
+    <div class="card"><h3>Alternatives</h3><p>What else solves it?<br>Under which conditions does each one win?</p></div>
+    <div class="card"><h3>Limits</h3><p>Is there a <strong>lower bound</strong>?<br>Is an exact efficient algorithm even plausible?</p></div>
+    <div class="card"><h3>Evidence</h3><p>What would an experiment show?<br>What would it <strong>not</strong> show?</p></div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem: believe the vendor?</h2>
+  <div class="cols wide-l">
+    <div class="small">
+      <p>Three sales pitches for a sorting library, for records with 64-bit keys:</p>
+      <ol>
+        <li>"Our comparison sort needs only \(3n\) comparisons on <em>any</em> input."</li>
+        <li>"We sort \(10^8\) records in \(O(n)\) time."</li>
+        <li>"Our sort is \(O(n\log n)\), so it is always faster than your \(O(n^2)\) insertion sort."</li>
+      </ol>
+      <p>For each: <strong>impossible</strong>, <strong>possible under assumptions</strong> (which?), or <strong>not a meaningful claim</strong>?</p>
+    </div>
+    <div class="box q"><span class="label">Pairs · 4 min</span>
+      Decide for each claim. Write down the <em>one assumption</em> that decides it.
+      <p class="xsmall muted" style="margin-top:10px">We'll come back to all three by the end of today.</p>
+    </div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:15–01:00</span>
+  <h1>What exactly are we claiming?</h1>
+  <p>Models · input size · kinds of guarantee · bounds · asymptotics vs. practice</p>
+</section>
+
+<section class="slide">
+  <h2>A running time is only meaningful inside a model</h2>
+  <table class="small">
+    <tr><th>Model</th><th>Unit-cost operations</th><th>Typical use</th></tr>
+    <tr><td><strong>Word-RAM</strong> (word size \(w \ge \log_2 n\))</td><td>arithmetic, comparison, indexing, bit operations on \(w\)-bit words</td><td>default for this course; integer sorting, hashing</td></tr>
+    <tr><td><strong>Comparison model</strong></td><td>only \(a_i \le a_j\)? queries on keys; everything else free</td><td>lower bounds for sorting, searching, selection</td></tr>
+    <tr><td><strong>Real RAM</strong></td><td>exact arithmetic on real numbers</td><td>computational geometry</td></tr>
+    <tr><td><strong>External memory</strong> (block size \(B\), memory \(M\))</td><td>cost = number of block transfers</td><td>databases, huge data</td></tr>
+  </table>
+  <div class="box warn" style="margin-top:14px">A lower bound proved in one model says <strong>nothing</strong> about an algorithm that uses operations outside that model.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>What is the input size?</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Input size = the number of <strong>bits</strong> (or words) needed to write the input down.</p>
+      <table class="tight">
+        <tr><th>Problem</th><th>Natural size</th></tr>
+        <tr><td>Sort \(n\) keys of \(w\) bits</td><td>\(n\) words (\(nw\) bits)</td></tr>
+        <tr><td>Graph problems</td><td>\(n = |V|\), \(m = |E|\) (two parameters)</td></tr>
+        <tr><td>Is \(N\) prime?</td><td>\(b = \lceil\log_2 (N+1)\rceil\) bits — <strong>not</strong> \(N\)</td></tr>
+        <tr><td>0/1 knapsack, capacity \(W\)</td><td>\(n\) items + \(\log_2 W\) bits for \(W\)</td></tr>
+      </table>
+    </div>
+    <div class="stack">
+      <div class="box q"><span class="label">Ask</span>
+        Trial division tests primality with \(\sqrt N\) divisions. Polynomial or exponential?</div>
+      <div class="box key small">\(\sqrt N = 2^{b/2}\): <strong>exponential</strong> in the input size. The same trap returns in L07: the \(O(nW)\) knapsack DP is <em>pseudo-polynomial</em>.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Four different guarantees (do not mix them up)</h2>
+  <p class="small">\(T(x)\) = cost on input \(x\); \(T(x,r)\) = cost on input \(x\) with random bits \(r\).</p>
+  <table class="small">
+    <tr><th>Guarantee</th><th>Definition</th><th>Randomness over…</th></tr>
+    <tr><td><strong>Worst case</strong></td><td>\(\displaystyle T_{\text{wc}}(n)=\max_{|x|=n} T(x)\)</td><td>none</td></tr>
+    <tr><td><strong>Average case</strong></td><td>\(\displaystyle T_{\text{avg}}(n)=\mathbb{E}_{x\sim\mathcal D_n}[T(x)]\)</td><td>the <em>input</em> (assumed distribution \(\mathcal D_n\))</td></tr>
+    <tr><td><strong>Expected</strong> (randomized alg.)</td><td>\(\displaystyle T_{\text{exp}}(n)=\max_{|x|=n}\ \mathbb{E}_{r}[T(x,r)]\)</td><td>the algorithm's own coins; input is <strong>worst case</strong></td></tr>
+    <tr><td><strong>Amortized</strong></td><td>\(\displaystyle \max_{\text{sequences } \sigma \text{ of } m \text{ ops}} \tfrac{1}{m}\sum_{i} c_i\)</td><td>none: worst case over <em>sequences</em></td></tr>
+  </table>
+  <div class="box warn small" style="margin-top:12px">Average case trusts the input distribution. Expected time trusts only your own random number generator. Amortized involves <strong>no probability at all</strong>.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Asymptotic notation, formally</h2>
+  <p class="small" style="margin-bottom:6px">For \(f,g:\mathbb N\to\mathbb R_{\ge 0}\):</p>
+  <table class="small" style="margin-bottom:16px">
+    <tr><td>\(f=O(g)\)</td><td>\(\exists\, c&gt;0,\ n_0:\ \ f(n)\le c\,g(n)\ \text{ for all } n\ge n_0\)</td><td>upper bound</td></tr>
+    <tr><td>\(f=\Omega(g)\)</td><td>\(\exists\, c&gt;0,\ n_0:\ \ f(n)\ge c\,g(n)\ \text{ for all } n\ge n_0\)</td><td>lower bound</td></tr>
+    <tr><td>\(f=\Theta(g)\)</td><td>\(f=O(g)\) and \(f=\Omega(g)\)</td><td>tight bound</td></tr>
+    <tr><td>\(f=o(g)\)</td><td>\(\forall\, c&gt;0\ \exists\, n_0:\ \ f(n)&lt; c\,g(n)\ \text{ for all } n\ge n_0\)</td><td>strictly smaller order</td></tr>
+    <tr><td>\(f=\omega(g)\)</td><td>\(g=o(f)\)</td><td>strictly larger order</td></tr>
+  </table>
+  <div>
+    <div class="box bad">
+      <span class="label">These are statements about functions</span>
+      <p>\(O\), \(\Omega\), \(\Theta\) compare <strong>two functions</strong>. They are not "cases".</p>
+      <p>"Worst case" and "best case" choose <strong>which function</strong> we are describing.</p>
+      <p class="small" style="margin:0">Each combination is meaningful: the worst case can have an \(\Omega\) bound and the best case can have an \(O\) bound.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Algorithm bounds vs. problem bounds</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>About an algorithm \(A\)</h3>
+      <ul>
+        <li>Upper bound: \(T_A(n) = O(g)\), i.e. \(A\) never costs more than this</li>
+        <li>Lower bound: \(T_A(n) = \Omega(g)\), i.e. \(A\) really does cost this on some inputs (worst case)</li>
+        <li>Proved by analysing <strong>this one algorithm</strong></li>
+      </ul>
+      <h3>About a problem \(P\) (in a model)</h3>
+      <ul>
+        <li>Upper bound: <strong>some</strong> algorithm solves \(P\) in \(O(g)\)</li>
+        <li>Lower bound: <strong>every</strong> algorithm for \(P\) in the model needs \(\Omega(g)\)</li>
+        <li>Tight when they match. Example: comparison sorting is \(\Theta(n\log n)\).</li>
+      </ul>
+    </div>
+    <div class="box key">
+      <span class="label">Why this matters</span>
+      <p>An upper bound is an algorithm. A lower bound is a <strong>theorem about all algorithms</strong>, including ones nobody has invented yet.</p>
+      <p class="small">Once they match, you stop searching for a faster algorithm <em>in that model</em>. To go faster you have to change the model or the assumptions.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Asymptotics vs. practice</h2>
+  <div class="cols wide-l small">
+    <div>
+      <ul>
+        <li><strong>Constants and lower-order terms</strong>: insertion sort beats merge sort below roughly 16–64 elements, so library sorts switch to it for small subarrays.</li>
+        <li><strong>Memory hierarchy</strong>: a cache miss costs about 100 comparisons. Cache-friendly \(\Theta(n\log n)\) code can beat pointer-chasing \(\Theta(n)\) code.</li>
+        <li><strong>Input distributions</strong>: real data is often nearly sorted, skewed or adversarial.</li>
+        <li><strong>Galactic algorithms</strong>: asymptotically best, never practical (e.g. fast matrix multiplication with \(\omega&lt;2.372\)).</li>
+        <li><strong>Which cost?</strong> Comparisons, time, memory, I/Os, energy. These can disagree.</li>
+      </ul>
+    </div>
+    <div class="box q"><span class="label">Look ahead (Block C data)</span>
+      <code>std::sort</code> makes <strong>~30–40% more comparisons</strong> than merge sort on random input, yet it is the default in practice. Why might that be sensible?</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Quick check: true, false, or meaningless?</h2>
+  <ol class="small">
+    <li>"Merge sort is \(O(n^2)\)."</li>
+    <li>"Quicksort is \(O(n\log n)\)."</li>
+    <li>"Insertion sort is \(\Omega(n^2)\)."</li>
+    <li>"A \(\Theta(n\log n)\) worst-case algorithm is always faster than a \(\Theta(n^2)\) worst-case one."</li>
+    <li>"Counting sort breaks the \(\Omega(n\log n)\) sorting lower bound."</li>
+    <li>"Hash table lookup is \(O(1)\)."</li>
+    <li>"Dynamic-array append is \(O(1)\) on average."</li>
+  </ol>
+  <div class="box q small"><span class="label">3 min, individually</span>For each: T / F / needs qualification. If it needs one, write the qualification.</div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Proving algorithms correct</h1>
+  <p>Invariants · induction · contradiction · counterexamples · exchange arguments (preview)</p>
+</section>
+
+<section class="slide">
+  <h2>What a correctness proof must establish</h2>
+  <div class="cols">
+    <div class="small">
+      <ol>
+        <li><strong>Specification</strong>: precondition (valid inputs) and postcondition (required output). Without a spec there is nothing to prove.</li>
+        <li><strong>Partial correctness</strong>: <em>if</em> the algorithm terminates on a valid input, the output satisfies the postcondition.</li>
+        <li><strong>Termination</strong>: it does terminate, usually via a <em>variant</em>, a non-negative integer that strictly decreases on every iteration or recursive call.</li>
+      </ol>
+      <p>Total correctness = 2 + 3.</p>
+    </div>
+    <div class="stack">
+      <div class="box defn"><span class="label">Toolbox</span>
+        <table class="tight">
+          <tr><td>Loops</td><td>loop invariant + variant</td></tr>
+          <tr><td>Recursion</td><td>(strong) induction on input size</td></tr>
+          <tr><td>Optimality</td><td>contradiction; exchange / cut arguments</td></tr>
+          <tr><td>Refutation</td><td>counterexample</td></tr>
+        </table>
+      </div>
+      <div class="box warn small">Testing can show the <strong>presence</strong> of bugs, never their absence. A proof covers <em>all</em> inputs that satisfy the precondition.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Loop invariants: binary search done right</h2>
+  <div class="cols wide-r">
+    <div class="small">
+      <p><strong>Spec.</strong> Pre: \(A[0..n-1]\) sorted non-decreasingly. Post: return the smallest \(i\in[0,n]\) with \(A[i]\ge x\) (or \(n\) if none).</p>
+      <p><strong>Invariant \(I\):</strong> \(0\le lo\le hi\le n\), \(A[j]&lt;x\) for all \(j&lt;lo\), and \(A[j]\ge x\) for all \(j\ge hi\).</p>
+      <p><strong>Variant:</strong> \(hi-lo\).</p>
+    </div>
+    <pre class="pseudo ln">LOWER-BOUND(A, n, x)
+  lo = 0 ; hi = n
+  while lo &lt; hi
+      mid = lo + ⌊(hi − lo) / 2⌋
+      if A[mid] &lt; x
+          lo = mid + 1
+      else
+          hi = mid
+  return lo</pre>
+  </div>
+  <div class="cols c3 xsmall" style="margin-top:4px">
+    <div class="box plain"><strong>Initialization.</strong> \(lo=0,hi=n\): both "for all" ranges are empty, so \(I\) holds.</div>
+    <div class="box plain"><strong>Maintenance.</strong> \(lo\le mid&lt;hi\). If \(A[mid]&lt;x\), sortedness gives \(A[j]&lt;x\) for all \(j\le mid\), so \(lo=mid+1\) preserves \(I\). Otherwise \(A[j]\ge x\) for all \(j\ge mid\), so \(hi=mid\) does.</div>
+    <div class="box plain"><strong>Termination.</strong> \(hi-lo\) strictly decreases, because \(mid&lt;hi\) and \(mid+1&gt;lo\). At exit \(lo=hi\); by \(I\), \(lo\) is the smallest index with \(A[lo]\ge x\).</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Induction for recursive algorithms</h2>
+  <div class="cols">
+    <pre class="pseudo ln">POWER(a, n)          ▷ n ≥ 0 integer
+  if n == 0
+      return 1
+  h = POWER(a, ⌊n/2⌋)
+  if n is even
+      return h · h
+  else
+      return h · h · a</pre>
+    <div class="small">
+      <p><strong>Claim.</strong> For all \(n\ge 0\): \(\text{POWER}(a,n)=a^n\).</p>
+      <p><strong>Proof (strong induction on \(n\)).</strong> Base \(n=0\): returns \(1=a^0\). Step: for \(n\ge1\), \(\lfloor n/2\rfloor&lt;n\), so by hypothesis \(h=a^{\lfloor n/2\rfloor}\). If \(n=2k\): \(h^2=a^{2k}\). If \(n=2k+1\): \(h^2a=a^{2k+1}\).</p>
+      <p><strong>Termination</strong> is part of the same induction: every call is on a strictly smaller non-negative integer.</p>
+      <p><strong>Cost.</strong> \(T(n)=T(\lfloor n/2\rfloor)+O(1)\Rightarrow O(\log n)\) multiplications. How many <em>bit operations</em>?</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Contradiction: finding the maximum needs \(n-1\) comparisons</h2>
+  <div class="cols wide-l small">
+    <div>
+      <p><strong>Claim.</strong> Every comparison-based algorithm that always returns the maximum of \(n\) distinct keys makes at least \(n-1\) comparisons in the worst case.</p>
+      <p><strong>Proof.</strong> Call a key a <em>loser</em> once it has been smaller in some comparison. Suppose the algorithm stops after fewer than \(n-1\) comparisons. Each comparison creates at most one new loser, so at least two keys, \(u\) and \(v\), have never lost. The algorithm outputs one of them, say \(u\). Now change the input by raising \(v\) above every other key. Every comparison involving \(v\) had \(v\) as the winner, so all comparison outcomes are unchanged, the algorithm behaves identically, and it outputs \(u\), which is wrong. Contradiction. \(\blacksquare\)</p>
+    </div>
+    <div class="box key">
+      <span class="label">Pattern</span>
+      <p>Assume a <em>better</em> algorithm exists → build an input on which it is fooled.</p>
+      <p class="small">This is an <strong>adversary argument</strong>. The same idea proves lower bounds in Block C.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Counterexamples: the fastest way to kill a claim</h2>
+  <div class="cols small">
+    <div>
+      <h3>Claim A: greedy coin change is optimal</h3>
+      <p>Coins \(\{1,3,4\}\), amount \(6\). Greedy: \(4+1+1\) = 3 coins. Optimal: \(3+3\) = 2 coins. ✗</p>
+      <p class="muted">Greedy <em>is</em> optimal for some coin systems (e.g. \(\{1,5,10,25\}\)). Knowing <em>when</em> is L08 material.</p>
+      <h3>Claim B: shortest-first maximises the number of non-overlapping intervals</h3>
+      <p>\([0,5),[4,7),[6,11)\): shortest-first picks \([4,7)\) only. Optimal: \([0,5),[6,11)\). ✗</p>
+    </div>
+    <div class="box key">
+      <span class="label">How to find counterexamples systematically</span>
+      <ol class="small">
+        <li>Try tiny inputs (\(n\le 4\)) and extreme structure: all equal, sorted, reversed, one huge value.</li>
+        <li>Identify the "decision" the rule makes and construct an input where that decision blocks a better one.</li>
+        <li>Mechanise: brute force vs. candidate on thousands of random small inputs (<em>differential testing</em>).</li>
+      </ol>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Preview: exchange arguments</h2>
+  <div class="cols wide-l small">
+    <div>
+      <p><strong>Rule:</strong> repeatedly pick the compatible interval that <strong>finishes earliest</strong>.</p>
+      <p><strong>Exchange lemma.</strong> Let \(g\) be the interval with the earliest finish time. Some optimal solution contains \(g\).</p>
+      <p><strong>Proof.</strong> Take any optimal solution \(O\), sorted by finish time, with first interval \(o_1\). Since \(f(g)\le f(o_1)\), replacing \(o_1\) by \(g\) conflicts with nothing: every other interval in \(O\) starts after \(f(o_1)\ge f(g)\). The new solution is feasible and has \(|O|\) intervals, so it is optimal. Then apply induction to the intervals that start after \(f(g)\).</p>
+    </div>
+    <div class="box key">
+      <span class="label">Template (L08, L09)</span>
+      <ol class="small">
+        <li>Take an arbitrary optimal solution \(O\).</li>
+        <li>If it differs from greedy, <strong>exchange</strong> one piece towards greedy's choice.</li>
+        <li>Show the result is still feasible and no worse.</li>
+        <li>Repeat or induct: greedy's solution is optimal.</li>
+      </ol>
+      <p class="xsmall">Cut property for MSTs (L09) is the same argument.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: find the flaw</h2>
+  <div class="cols wide-r">
+    <div class="small">
+      <p><strong>Spec.</strong> \(A\) sorted, \(A[0]\le x\). Return the largest \(i\) with \(A[i]\le x\).</p>
+      <pre class="pseudo ln sm">LAST-LE(A, n, x)
+  lo = 0 ; hi = n − 1
+  while lo &lt; hi
+      mid = ⌊(lo + hi) / 2⌋
+      if A[mid] ≤ x
+          lo = mid
+      else
+          hi = mid − 1
+  return lo</pre>
+    </div>
+    <div class="stack small">
+      <div class="box plain">
+        <span class="label">A student's "proof"</span>
+        Invariant: \(A[lo]\le x\), and every \(j&gt;hi\) has \(A[j]&gt;x\). Both branches preserve it. The interval \([lo,hi]\) shrinks every iteration, so the loop terminates, and at exit \(lo=hi\) is the answer.
+      </div>
+      <div class="box q"><span class="label">Groups of 3 · 8 min</span>
+        (1) Which sentence is false? (2) Give an input that breaks the algorithm. (3) Fix it with a minimal change and re-prove termination.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Common ways correctness proofs fail</h2>
+  <table class="small">
+    <tr><th>Failure</th><th>Symptom</th><th>Remedy</th></tr>
+    <tr><td>No specification</td><td>"It sorts the array" (stable? duplicates? in place?)</td><td>Write pre/postconditions first</td></tr>
+    <tr><td>Invariant too weak</td><td>Cannot derive the postcondition at exit</td><td>Ask: what do we know about the <em>discarded</em> part?</td></tr>
+    <tr><td>Invariant not actually maintained</td><td>Proved on an example, not in general</td><td>Consider every branch and boundary</td></tr>
+    <tr><td>Termination asserted, not proved</td><td>Off-by-one infinite loops (Exercise B)</td><td>Name a variant; check floors/ceilings</td></tr>
+    <tr><td>Circular induction</td><td>Hypothesis applied to an instance that is not smaller</td><td>State the measure that decreases</td></tr>
+    <tr><td>"Clearly" / "obviously"</td><td>The hard step is skipped</td><td>If it is obvious, it takes one line: write it</td></tr>
+  </table>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Lower bounds: proving that nothing is faster</h1>
+  <p>Decision trees · \(\Omega(n\log n)\) · what the bound does not say · experiment</p>
+</section>
+
+<section class="slide">
+  <h2>The comparison decision tree</h2>
+  <div class="cols wide-r mid">
+    <div class="small">
+      <ul>
+        <li>Fix \(n\). Any deterministic comparison sort, run on inputs of size \(n\), is a <strong>binary tree</strong>: internal node = a comparison \(a_i \le a_j\)?; leaf = an output permutation.</li>
+        <li>One execution = one root-to-leaf path. Worst-case comparisons = <strong>height</strong>.</li>
+        <li>Correctness forces every one of the \(n!\) orderings to reach a leaf labelled with the right permutation, so there are \(\ge n!\) leaves.</li>
+      </ul>
+    </div>
+    <svg viewBox="0 0 700 330" width="660">
+      <g>
+        <line class="edge" x1="350" y1="40" x2="175" y2="115"/><line class="edge" x1="350" y1="40" x2="525" y2="115"/>
+        <line class="edge" x1="175" y1="115" x2="85" y2="195"/><line class="edge" x1="175" y1="115" x2="265" y2="195"/>
+        <line class="edge" x1="525" y1="115" x2="435" y2="195"/><line class="edge" x1="525" y1="115" x2="615" y2="195"/>
+        <line class="edge" x1="265" y1="195" x2="210" y2="280"/><line class="edge" x1="265" y1="195" x2="320" y2="280"/>
+        <line class="edge" x1="615" y1="195" x2="560" y2="280"/><line class="edge" x1="615" y1="195" x2="670" y2="280"/>
+        <rect class="node" x="305" y="22" width="90" height="36" rx="18"/><text class="lbl" x="350" y="46" text-anchor="middle">a₁:a₂</text>
+        <rect class="node" x="130" y="97" width="90" height="36" rx="18"/><text class="lbl" x="175" y="121" text-anchor="middle">a₂:a₃</text>
+        <rect class="node" x="480" y="97" width="90" height="36" rx="18"/><text class="lbl" x="525" y="121" text-anchor="middle">a₁:a₃</text>
+        <rect class="node hi" x="40" y="180" width="90" height="32"/><text class="lbl sm" x="85" y="202" text-anchor="middle">⟨1,2,3⟩</text>
+        <rect class="node" x="220" y="177" width="90" height="36" rx="18"/><text class="lbl" x="265" y="201" text-anchor="middle">a₁:a₃</text>
+        <rect class="node hi" x="390" y="180" width="90" height="32"/><text class="lbl sm" x="435" y="202" text-anchor="middle">⟨2,1,3⟩</text>
+        <rect class="node" x="570" y="177" width="90" height="36" rx="18"/><text class="lbl" x="615" y="201" text-anchor="middle">a₂:a₃</text>
+        <rect class="node hi" x="165" y="265" width="90" height="32"/><text class="lbl sm" x="210" y="287" text-anchor="middle">⟨1,3,2⟩</text>
+        <rect class="node hi" x="275" y="265" width="90" height="32"/><text class="lbl sm" x="320" y="287" text-anchor="middle">⟨3,1,2⟩</text>
+        <rect class="node hi" x="515" y="265" width="90" height="32"/><text class="lbl sm" x="560" y="287" text-anchor="middle">⟨2,3,1⟩</text>
+        <rect class="node hi" x="610" y="265" width="84" height="32"/><text class="lbl sm" x="652" y="287" text-anchor="middle">⟨3,2,1⟩</text>
+        <text class="lbl sm" x="240" y="72">≤</text><text class="lbl sm" x="450" y="72">&gt;</text>
+        <text class="lbl sm" x="10" y="325" fill="#6b7482">Insertion sort on n = 3: 6 leaves, height 3 = ⌈log₂ 3!⌉</text>
+      </g>
+    </svg>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Theorem: comparison sorting needs \(\Omega(n\log n)\)</h2>
+  <div class="box thm small"><span class="label">Theorem</span>Every comparison sort makes at least \(\lceil \log_2 n!\rceil = n\log_2 n - n\log_2 e + O(\log n)\) comparisons in the worst case, and at least \(\log_2 n!\) on average over a uniformly random permutation.</div>
+  <div class="box proof small"><span class="label">Proof</span>
+    A binary tree of height \(h\) has at most \(2^h\) leaves. We need \(2^h \ge n!\), so \(h\ge\log_2 n!\). And
+    \[\log_2 n! = \sum_{i=1}^{n}\log_2 i \;\ge\; \sum_{i=\lceil n/2\rceil}^{n}\log_2 i \;\ge\; \frac n2\log_2\frac n2 \;=\; \Omega(n\log n).\]
+    <span>Average case: among binary trees with \(L\) leaves, average leaf depth \(\ge\log_2 L\) (proof by induction or by convexity; balanced trees are best).</span>
+  </div>
+  <p class="small">Vendor claim 1: \(\lceil\log_2 20!\rceil = 62 &gt; 60 = 3\cdot 20\), so "\(3n\) comparisons on any input" is impossible for every \(n\ge 20\). For \(n=10^6\): \(\log_2 n! \approx 1.85\times 10^7 \gg 3\times10^6\).</p>
+  
+</section>
+
+<section class="slide">
+  <h2>What the lower bound does <em>not</em> say</h2>
+  <div class="cols small">
+    <div>
+      <h3>Counting sort: keys in \([0,K)\)</h3>
+      <p>Count occurrences, take prefix sums, place each key. \(\Theta(n+K)\) time and space. <strong>It never compares two keys</strong>: it uses a key as an <em>array index</em>.</p>
+      <h3>Radix sort: \(b\)-bit keys, digits of \(r\) bits</h3>
+      <p>\(\lceil b/r\rceil\) stable counting-sort passes: \(\Theta\big(\tfrac{b}{r}(n+2^r)\big)\). With \(r\approx\log_2 n\): \(\Theta\big(\tfrac{b\,n}{\log n}\big)\), i.e. \(\Theta(n)\) when \(b=O(\log n)\).</p>
+    </div>
+    <div class="stack">
+      <div class="box key"><span class="label">No contradiction</span>
+        The theorem is about the <strong>comparison model</strong>. Counting and radix sort run in the <strong>word-RAM</strong> and <strong>assume</strong> integer keys from a bounded universe.</div>
+      <div class="box warn"><span class="label">The price of the assumption</span>
+        Counting sort pays \(\Theta(K)\) memory and time. Radix sort's cost depends on the key length \(b\). For arbitrary comparable objects (strings, tuples with a custom order), you are back in the comparison model.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Experiment 1: how close are real sorts to \(\lceil\log_2 n!\rceil\)?</h2>
+  <div class="cols wide-l">
+    <table class="small">
+      <tr><th class="num">\(n\)</th><th class="num">\(\lceil\log_2 n!\rceil\)</th><th class="num">merge sort</th><th class="num">std::sort</th><th class="num">insertion</th></tr>
+      <tr><td class="num">16</td><td class="num">45</td><td class="num">46</td><td class="num">72</td><td class="num">67</td></tr>
+      <tr><td class="num">256</td><td class="num">1,684</td><td class="num">1,731</td><td class="num">2,445</td><td class="num">16,421</td></tr>
+      <tr><td class="num">4,096</td><td class="num">43,251</td><td class="num">43,983</td><td class="num">60,125</td><td class="num">4,186,229</td></tr>
+      <tr><td class="num">65,536</td><td class="num">954,037</td><td class="num">965,692</td><td class="num">1,261,749</td><td class="num">—</td></tr>
+    </table>
+    <div class="box q small"><span class="label">Interpret</span>
+      <ul>
+        <li>Merge sort is within ~1–3% of the bound. Why so close?</li>
+        <li>Insertion sort ≈ \(n^2/4\). Why exactly that?</li>
+        <li>Does any column contradict the theorem?</li>
+      </ul>
+    </div>
+  </div>
+  <p class="xsmall muted">Random permutations, mean of 5 runs; <code>Student_Resources/comparison_counts.cpp</code>, g++ 15.2 -O2.</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Experiment 2: when does the extra assumption pay off?</h2>
+  <div class="cols wide-l">
+    <table class="small">
+      <tr><th colspan="3">\(n = 2{,}000{,}000\) keys uniform in \([0,K)\); median of 5 runs (ms)</th></tr>
+      <tr><th class="num">\(K\)</th><th class="num">counting sort</th><th class="num">std::sort</th></tr>
+      <tr><td class="num">256</td><td class="num">5.5</td><td class="num">63.7</td></tr>
+      <tr><td class="num">65,536</td><td class="num">12.9</td><td class="num">107.2</td></tr>
+      <tr><td class="num">2,000,000</td><td class="num">30.0</td><td class="num">127.0</td></tr>
+      <tr class="hl"><td class="num">64,000,000</td><td class="num">199.8</td><td class="num">124.0</td></tr>
+      <tr class="hl"><td class="num">256,000,000</td><td class="num">719.3</td><td class="num">128.9</td></tr>
+    </table>
+    <div class="box q small"><span class="label">Discuss · 3 min</span>
+      <ol>
+        <li>Predict the crossover from the formulas \(\Theta(n+K)\) vs \(\Theta(n\log n)\).</li>
+        <li>Why is counting sort still 4× faster at \(K=n\)?</li>
+        <li>Name one threat to validity of this table.</li>
+      </ol>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: lower bounds for other problems</h2>
+  <ol class="small">
+    <li><strong>Searching.</strong> Prove that any comparison-based search in a sorted array of \(n\) keys needs \(\ge\lceil\log_2(n+1)\rceil\) comparisons in the worst case.</li>
+    <li><strong>Merging.</strong> Two sorted lists of \(n\) keys each. (a) Give the decision-tree bound. (b) Show that an adversary forces \(2n-1\) comparisons. <em>Hint:</em> interleave the lists.</li>
+    <li><strong>Reduction.</strong> Prove that building a binary search tree from \(n\) unsorted keys needs \(\Omega(n\log n)\) comparisons.</li>
+    <li><strong>Too good to be true.</strong> A comparison-based priority queue with \(O(1)\) <em>insert</em> and \(O(1)\) <em>extract-min</em>, both worst case. Possible?</li>
+  </ol>
+  <div class="box q small"><span class="label">Groups · 10 min</span>Do 1 and 3 first. Then 4. Then 2 if time permits.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis: what to carry forward</h2>
+  <div class="cols small">
+    <ol>
+      <li>A complexity claim = <strong>model</strong> + <strong>input size</strong> + <strong>cost measure</strong> + <strong>kind of guarantee</strong> + bound.</li>
+      <li>\(O/\Omega/\Theta\) compare functions. Worst/best/average/expected/amortized choose the function. Keep the two axes separate.</li>
+      <li>Correctness = specification + partial correctness + termination. Invariants for loops, induction for recursion, exchange arguments for greedy.</li>
+      <li>A problem lower bound is a theorem about <strong>all</strong> algorithms in a model: adversaries, decision trees, reductions.</li>
+      <li>Beating a lower bound always means changing the model or adding an assumption, and assumptions have costs you can measure.</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L02 (Sat 3 Oct)</span>
+      Divide-and-conquer, recurrences (Master theorem and where it fails), and <strong>selection in linear time</strong>: finding the median without sorting, deterministically.
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> CLRS 4e Ch. 4 (4.3–4.6), Ch. 9. <strong>PS1</strong> is released next Saturday.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

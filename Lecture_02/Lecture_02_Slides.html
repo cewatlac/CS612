@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L02 — Divide-and-Conquer, Recurrences &amp; Selection (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 02 · Sat 03 Oct 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 02<br>Divide-and-Conquer, Recurrences &amp; Selection</h1>
+  <p>Sorting needs \(\Omega(n\log n)\). Does finding the median? And how do we read a recursive algorithm's cost off its structure?</p>
+  <div class="meta">Saturday 3 October 2026 · 3 hours<br>PS1 released today (due Sat 17 Oct)</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Where we are</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>L01 established</h3>
+      <ul>
+        <li>A complexity claim = model + input size + cost measure + guarantee type + bound</li>
+        <li>Correctness = spec + invariant/induction + termination</li>
+        <li>Comparison sorting needs \(\lceil\log_2 n!\rceil\) comparisons; adversary and decision-tree arguments</li>
+      </ul>
+    </div>
+    <div class="box key">
+      <span class="label">Today's question</span>
+      Finding the \(k\)-th smallest of \(n\) keys: can we beat sorting's \(\Theta(n\log n)\)? If yes, what kind of guarantee do we get: <strong>expected</strong> or <strong>worst case</strong>?
+      <p class="small" style="margin-top:8px">To answer it, we need tools to analyse recursive algorithms whose recursion is <em>unbalanced</em>.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem: percentiles at scale</h2>
+  <div class="cols wide-l">
+    <div class="small">
+      <p>A monitoring system keeps \(n = 10^9\) request latencies in memory. Every minute it reports the <strong>median</strong>, the <strong>p99</strong> and the <strong>p99.9</strong>.</p>
+      <ul>
+        <li>Sorting: \(\approx n\log_2 n \approx 3\times10^{10}\) comparisons per report.</li>
+        <li>Is there a lower bound that makes this unavoidable?</li>
+        <li>The p99 of \(10^9\) values is the \(9.9\times10^8\)-th smallest. A heap of the top 1% has \(10^7\) entries. Is that better?</li>
+      </ul>
+    </div>
+    <div class="box q"><span class="label">Discuss · 3 min</span>
+      What is the <strong>best lower bound you can prove right now</strong> for finding the median in the comparison model? Is it \(\Omega(n\log n)\)?</div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>Formulating and solving recurrences</h1>
+  <p>Substitution · recursion trees · Master theorem · where it breaks</p>
+</section>
+
+<section class="slide">
+  <h2>From algorithm to recurrence</h2>
+  <table class="small">
+    <tr><th>Algorithm</th><th>Structure</th><th>Recurrence</th><th>Solution</th></tr>
+    <tr><td>Binary search</td><td>1 subproblem of half size, \(O(1)\) work</td><td>\(T(n)=T(n/2)+\Theta(1)\)</td><td>\(\Theta(\log n)\)</td></tr>
+    <tr><td>Merge sort</td><td>2 halves, linear merge</td><td>\(T(n)=2T(n/2)+\Theta(n)\)</td><td>\(\Theta(n\log n)\)</td></tr>
+    <tr><td>Karatsuba multiplication</td><td>3 half-size products, \(O(n)\) additions</td><td>\(T(n)=3T(n/2)+\Theta(n)\)</td><td>\(\Theta(n^{\log_2 3})\approx n^{1.585}\)</td></tr>
+    <tr><td>Strassen</td><td>7 half-size matrix products, \(\Theta(n^2)\) additions</td><td>\(T(n)=7T(n/2)+\Theta(n^2)\)</td><td>\(\Theta(n^{\log_2 7})\approx n^{2.807}\)</td></tr>
+    <tr class="hl"><td>Median of medians</td><td>two <em>different-sized</em> recursive calls</td><td>\(T(n)\le T(n/5)+T(7n/10)+\Theta(n)\)</td><td>? (today)</td></tr>
+  </table>
+  <div class="box plain small" style="margin-top:12px"><strong>Floors and ceilings</strong> (\(T(\lceil n/2\rceil)\) etc.) almost never change the \(\Theta\) bound. The Akra–Bazzi theorem justifies ignoring them for a broad class of recurrences.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Substitution: guess, then prove by induction</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>Example.</strong> \(T(n)=2T(\lfloor n/2\rfloor)+1\). Guess \(T(n)=O(n)\).</p>
+      <p><strong>Naive attempt:</strong> assume \(T(m)\le cm\) for \(m&lt;n\):</p>
+      \[T(n)\le 2c\lfloor n/2\rfloor+1\le cn+1.\]
+      <p class="box bad" style="margin-top:6px">\(cn+1\not\le cn\). The induction <strong>fails</strong>, even though the guess is right.</p>
+    </div>
+    <div class="small">
+      <p><strong>Fix: strengthen the hypothesis.</strong> Assume \(T(m)\le cm-d\):</p>
+      \[T(n)\le 2\big(c\lfloor n/2\rfloor-d\big)+1\le cn-2d+1\le cn-d\]
+      <p>whenever \(d\ge1\). Base case: choose \(c\) large relative to \(T(1)\).</p>
+      <div class="box key"><span class="label">Rule</span>The inductive step must prove <em>exactly</em> the hypothesis, with the same constants. "\(cn+1=O(n)\)" is <strong>not</strong> a valid step.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Recursion trees: where does the cost live?</h2>
+  <div class="cols wide-r mid">
+    <div class="small">
+      <p>\(T(n)=aT(n/b)+f(n)\): level \(j\) has \(a^j\) nodes of size \(n/b^j\), for total cost \(a^j f(n/b^j)\). Depth \(\log_b n\), with \(a^{\log_b n}=n^{\log_b a}\) leaves.</p>
+      \[T(n)=\sum_{j=0}^{\log_b n-1}a^j f\!\left(\tfrac{n}{b^j}\right)+\Theta\!\left(n^{\log_b a}\right)\]
+      <p>The per-level costs form (roughly) a geometric series. Three regimes:</p>
+      <ul>
+        <li><strong>decreasing</strong> down the tree → the root dominates → \(\Theta(f(n))\)</li>
+        <li><strong>constant</strong> → \(\Theta(f(n)\log n)\)</li>
+        <li><strong>increasing</strong> → the leaves dominate → \(\Theta(n^{\log_b a})\)</li>
+      </ul>
+    </div>
+    <svg viewBox="0 0 520 330" width="480">
+      <g font-size="15">
+        <circle class="node" cx="260" cy="30" r="20"/><text class="lbl sm" x="260" y="35" text-anchor="middle">n</text>
+        <line class="edge" x1="245" y1="45" x2="135" y2="100"/><line class="edge" x1="260" y1="50" x2="260" y2="100"/><line class="edge" x1="275" y1="45" x2="385" y2="100"/>
+        <circle class="node" cx="130" cy="115" r="20"/><circle class="node" cx="260" cy="115" r="20"/><circle class="node" cx="390" cy="115" r="20"/>
+        <text class="lbl sm" x="130" y="120" text-anchor="middle">n/b</text><text class="lbl sm" x="260" y="120" text-anchor="middle">n/b</text><text class="lbl sm" x="390" y="120" text-anchor="middle">n/b</text>
+        <text class="lbl sm" x="260" y="175" text-anchor="middle">⋮   a² nodes of size n/b²   ⋮</text>
+        <g fill="#e6eff8" stroke="#1f5f99">
+          <rect x="40" y="250" width="16" height="16"/><rect x="70" y="250" width="16" height="16"/><rect x="100" y="250" width="16" height="16"/>
+          <rect x="400" y="250" width="16" height="16"/><rect x="430" y="250" width="16" height="16"/><rect x="460" y="250" width="16" height="16"/>
+        </g>
+        <text class="lbl sm" x="260" y="263" text-anchor="middle">…  n^(log_b a) leaves  …</text>
+        <text class="lbl w" x="515" y="35" text-anchor="end">f(n)</text>
+        <text class="lbl w" x="515" y="120" text-anchor="end">a·f(n/b)</text>
+        <text class="lbl w" x="515" y="300" text-anchor="end">Θ(n^(log_b a))</text>
+      </g>
+    </svg>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>The Master theorem, precisely</h2>
+  <div class="box thm small"><span class="label">Theorem (CLRS 4e, Thm 4.1)</span>
+    Let \(a\ge1\), \(b&gt;1\), \(f\) asymptotically positive, and \(T(n)=aT(n/b)+f(n)\). Let \(w=\log_b a\) (the <em>watershed exponent</em>).
+    <ol style="margin-top:6px">
+      <li>If \(f(n)=O(n^{w-\varepsilon})\) for some \(\varepsilon&gt;0\): \(T(n)=\Theta(n^{w})\).</li>
+      <li>If \(f(n)=\Theta(n^{w}\log^k n)\) for some \(k\ge0\): \(T(n)=\Theta(n^{w}\log^{k+1}n)\).</li>
+      <li>If \(f(n)=\Omega(n^{w+\varepsilon})\) for some \(\varepsilon&gt;0\) <strong>and</strong> \(af(n/b)\le c f(n)\) for some \(c&lt;1\) and all large \(n\) (regularity): \(T(n)=\Theta(f(n))\).</li>
+    </ol>
+  </div>
+  <div class="cols small">
+    <div class="box plain">The "basic" textbook version has only \(k=0\) in case 2. The \(\log^k\) extension covers \(2T(n/2)+n\log n=\Theta(n\log^2 n)\).</div>
+    <div class="box warn">Cases 1 and 3 need a <strong>polynomial</strong> gap \(n^{\varepsilon}\). A log-factor gap is not enough.</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Where the Master theorem does not apply</h2>
+  <table class="small">
+    <tr><th>Recurrence</th><th>Why not</th><th>Tool</th><th>Answer</th></tr>
+    <tr><td>\(4T(n/2)+n^2/\log n\)</td><td>\(f\) is below \(n^2\) by only a log factor (and \(k=-1&lt;0\))</td><td>recursion tree</td><td>\(\Theta(n^2\log\log n)\)</td></tr>
+    <tr><td>\(T(n/3)+T(2n/3)+n\)</td><td>unequal subproblem sizes</td><td>tree + substitution</td><td>\(\Theta(n\log n)\)</td></tr>
+    <tr><td>\(T(n/5)+T(7n/10)+n\)</td><td>unequal sizes, fractions sum to \(0.9\)</td><td>substitution</td><td>\(\Theta(n)\)</td></tr>
+    <tr><td>\(\sqrt n\,T(\sqrt n)+n\)</td><td>\(a\) is not constant</td><td>divide by \(n\); change variables</td><td>\(\Theta(n\log\log n)\)</td></tr>
+    <tr><td>\(T(n-1)+n\)</td><td>subtractive, not divisive</td><td>unroll / sum</td><td>\(\Theta(n^2)\)</td></tr>
+  </table>
+  <div class="box key small" style="margin-top:12px"><span class="label">General tool (for reference)</span>
+    <strong>Akra–Bazzi:</strong> \(T(n)=\sum_i a_iT(b_in)+g(n)\). Find \(p\) with \(\sum a_ib_i^{p}=1\); then \(T(n)=\Theta\!\big(n^p(1+\int_1^n \frac{g(u)}{u^{p+1}}du)\big)\).
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: classify and solve</h2>
+  <div class="cols">
+    <ol class="small">
+      <li>\(T(n)=8T(n/2)+n^2\)</li>
+      <li>\(T(n)=2T(n/4)+\sqrt n\)</li>
+      <li>\(T(n)=2T(n/2)+n/\log n\)</li>
+      <li>\(T(n)=3T(n/3)+n\log^2 n\)</li>
+      <li>\(T(n)=T(n/2)+T(n/4)+n\)</li>
+      <li>\(T(n)=2T(n/2)+n^2\)</li>
+    </ol>
+    <div class="box q small"><span class="label">Pairs · 7 min</span>
+      For each: does the Master theorem apply? Which case (and is regularity satisfied)? If not, which tool would you use? Give the \(\Theta\) bound.</div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Case studies: when D&amp;C wins, and when it doesn't</h1>
+  <p>Maximum subarray · Strassen · selection in linear time</p>
+</section>
+
+<section class="slide">
+  <h2>Maximum subarray: D&amp;C, then do better</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>D&amp;C: \(\Theta(n\log n)\)</h3>
+      <p>The best subarray lies entirely in the left half, entirely in the right half, or <strong>crosses</strong> the midpoint. The crossing case = the best suffix of the left half + the best prefix of the right half: \(\Theta(n)\).</p>
+      <p>\(T(n)=2T(n/2)+\Theta(n)=\Theta(n\log n)\).</p>
+      <h3>But: Kadane's scan, \(\Theta(n)\)</h3>
+      <pre class="pseudo ln sm">KADANE(A)
+  best = A[1] ; cur = A[1]
+  for i = 2 to n
+      cur = max(A[i], cur + A[i])
+      best = max(best, cur)
+  return best</pre>
+    </div>
+    <div class="stack small">
+      <div class="box defn"><span class="label">Invariant (after step i)</span>
+        \(cur\) = the maximum sum of a subarray <strong>ending at</strong> \(i\); \(best\) = the maximum sum of any subarray within \(A[1..i]\).</div>
+      <div class="box key"><span class="label">Lesson</span>
+        D&amp;C gave a correct \(n\log n\) algorithm, but a <strong>stronger invariant</strong> (a DP state, as in L06) gives \(n\). The recurrence tells you what an algorithm costs; it does not tell you whether a better algorithm exists.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Strassen: trading multiplications for additions</h2>
+  <div class="cols wide-l small">
+    <div>
+      <p>Split \(n\times n\) matrices into \(2\times2\) blocks of size \(n/2\). The standard method needs 8 block products → \(T=8T(n/2)+\Theta(n^2)=\Theta(n^3)\).</p>
+      <p>Strassen (1969): <strong>7</strong> block products \(P_1..P_7\) plus 18 block additions/subtractions:</p>
+      \[T(n)=7T(n/2)+\Theta(n^2)\;\Rightarrow\;\Theta(n^{\log_2 7})=\Theta(n^{2.807\ldots})\]
+      <p>Case 1 of the Master theorem: \(n^2=O(n^{2.807-\varepsilon})\).</p>
+    </div>
+    <div class="box warn">
+      <span class="label">Theory vs. practice</span>
+      <ul class="small">
+        <li>Crossover with tuned \(\Theta(n^3)\) BLAS: typically \(n\) in the hundreds to low thousands (it depends on the machine).</li>
+        <li>Weaker numerical stability (subtractions amplify floating-point error).</li>
+        <li>Extra memory for temporaries.</li>
+        <li>The best known exponent today is \(\omega&lt;2.372\) (2024), but those algorithms are "galactic".</li>
+      </ul>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Selection: specification and a first algorithm</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>SELECT\((A,k)\):</strong> given \(n\) distinct keys and \(1\le k\le n\), return the key of rank \(k\) (the \(k\)-th smallest).</p>
+      <pre class="pseudo ln sm">RAND-SELECT(A, k)
+  if |A| == 1 return A[1]
+  p = uniformly random element of A
+  L = {x ∈ A : x &lt; p} ; R = {x ∈ A : x &gt; p}
+  if k ≤ |L|      return RAND-SELECT(L, k)
+  if k == |L| + 1 return p
+  return RAND-SELECT(R, k − |L| − 1)</pre>
+    </div>
+    <div class="stack small">
+      <div class="box plain"><strong>Correctness</strong> by strong induction on \(|A|\): \(p\) has rank \(|L|+1\), and the rank of the answer within \(L\) or \(R\) is adjusted accordingly.</div>
+      <div class="box key"><span class="label">Expected \(O(n)\), intuition</span>
+        With probability \(\ge 1/2\) the pivot's rank lies in the middle half, and then the recursion keeps at most \(3n/4\) elements. On average, 2 partitions are needed to shrink by \(3/4\):
+        \[E[T(n)]\le E[T(3n/4)]+2cn\;\Rightarrow\;O(n).\]
+        Full indicator-variable analysis: L03.</div>
+      <div class="box warn">Worst case: \(\Theta(n^2)\) (the pivot is always an extreme).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Median of medians (Blum, Floyd, Pratt, Rivest, Tarjan 1973)</h2>
+  <div class="cols wide-l">
+    <pre class="pseudo ln sm">SELECT(A, k)                       ▷ deterministic, n = |A|
+  if n ≤ 140  sort A and return A[k]
+  split A into ⌈n/5⌉ groups of ≤ 5 elements
+  M = the median of each group         ▷ O(n): ≤ 6 comparisons per group
+  x = SELECT(M, ⌈|M|/2⌉)              ▷ recursive: median of medians
+  partition A around x into L, {x}, R
+  if k ≤ |L|      return SELECT(L, k)
+  if k == |L| + 1 return x
+  return SELECT(R, k − |L| − 1)</pre>
+    <div class="box key small"><span class="label">Two recursive calls</span>
+      one on the \(\lceil n/5\rceil\) medians (to <em>find</em> a good pivot), one on the side that contains the answer (to <em>use</em> the pivot).<p style="margin-top:8px">Key question: how large can \(L\) or \(R\) be?</p></div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>The key lemma: the pivot is at least 30% in</h2>
+  <div class="cols wide-r mid">
+    <div class="small">
+      <p>Arrange the groups as columns, each sorted with its <strong>largest element at the top</strong>, and order the columns left to right by increasing median. The pivot \(x\) is the median of the middle row.</p>
+      <p><strong>Lemma.</strong> At least \(\frac{3n}{10}-6\) elements are \(&gt;x\), and likewise \(&lt;x\).</p>
+      <p><strong>Proof.</strong> At least half of the \(\lceil n/5\rceil\) groups have a median \(\ge x\). Each such group, except possibly \(x\)'s own group and a final partial group, contributes 3 elements \(\ge x\) (its median and the two below it). So there are at least \(3\big(\tfrac12\lceil\tfrac n5\rceil-2\big)\ge\frac{3n}{10}-6\) such elements. Hence \(|L|,|R|\le\frac{7n}{10}+6\).</p>
+    </div>
+    <svg viewBox="0 0 470 320" width="440">
+      <g>
+        <rect x="235" y="10" width="225" height="160" fill="#e8f5ec" stroke="#1f6b33" stroke-dasharray="6 4"/>
+        <rect x="10" y="130" width="225" height="180" fill="#fdecec" stroke="#a3262a" stroke-dasharray="6 4"/>
+        <g fill="#fff" stroke="#172b45" stroke-width="2">
+          <circle cx="40" cy="40" r="11"/><circle cx="40" cy="95" r="11"/><circle cx="40" cy="150" r="11"/><circle cx="40" cy="205" r="11"/><circle cx="40" cy="260" r="11"/>
+          <circle cx="100" cy="40" r="11"/><circle cx="100" cy="95" r="11"/><circle cx="100" cy="150" r="11"/><circle cx="100" cy="205" r="11"/><circle cx="100" cy="260" r="11"/>
+          <circle cx="160" cy="40" r="11"/><circle cx="160" cy="95" r="11"/><circle cx="160" cy="150" r="11"/><circle cx="160" cy="205" r="11"/><circle cx="160" cy="260" r="11"/>
+          <circle cx="280" cy="40" r="11"/><circle cx="280" cy="95" r="11"/><circle cx="280" cy="150" r="11"/><circle cx="280" cy="205" r="11"/><circle cx="280" cy="260" r="11"/>
+          <circle cx="340" cy="40" r="11"/><circle cx="340" cy="95" r="11"/><circle cx="340" cy="150" r="11"/><circle cx="340" cy="205" r="11"/><circle cx="340" cy="260" r="11"/>
+          <circle cx="400" cy="40" r="11"/><circle cx="400" cy="95" r="11"/><circle cx="400" cy="150" r="11"/><circle cx="400" cy="205" r="11"/><circle cx="400" cy="260" r="11"/>
+        </g>
+        <circle cx="220" cy="150" r="14" fill="#1f5f99"/><text x="220" y="155" fill="#fff" font-size="14" text-anchor="middle">x</text>
+        <circle cx="220" cy="95" r="11" fill="#fff" stroke="#172b45" stroke-width="2"/><circle cx="220" cy="40" r="11" fill="#fff" stroke="#172b45" stroke-width="2"/>
+        <circle cx="220" cy="205" r="11" fill="#fff" stroke="#172b45" stroke-width="2"/><circle cx="220" cy="260" r="11" fill="#fff" stroke="#172b45" stroke-width="2"/>
+        <text class="lbl sm" x="450" y="30" text-anchor="end" fill="#1f6b33">≥ x</text>
+        <text class="lbl sm" x="20" y="300" fill="#a3262a">≤ x</text>
+        <text class="lbl sm" x="235" y="315" text-anchor="middle" fill="#6b7482">middle row = group medians, ascending →</text>
+      </g>
+    </svg>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Linear time: the substitution proof</h2>
+  <div class="small">
+    <p>\(T(n)\le T(\lceil n/5\rceil)+T(\tfrac{7n}{10}+6)+an\) for \(n&gt;140\), with \(T(n)=O(1)\) for \(n\le140\).</p>
+    <div class="box proof"><span class="label">Claim: \(T(n)\le cn\) for a suitable \(c\)</span>
+      Assume it holds for all smaller arguments. Then
+      \[T(n)\le c\left(\tfrac n5+1\right)+c\left(\tfrac{7n}{10}+6\right)+an=\tfrac{9}{10}cn+7c+an.\]
+      This is \(\le cn\) iff \(c\left(\tfrac{n}{10}-7\right)\ge an\). For \(n\ge140\), \(\tfrac n{10}-7\ge\tfrac n{20}\), so \(c\ge20a\) suffices (and also choose \(c\) large enough for the base cases).
+    </div>
+    <div class="cols">
+      <div class="box key"><span class="label">Why it works</span>\(\frac15+\frac7{10}=\frac9{10}&lt;1\): the total work shrinks geometrically, level by level.</div>
+      <div class="box warn"><span class="label">The price</span>\(c\ge20a\): a large constant. In our experiment, about <strong>8.4n</strong> comparisons vs. <strong>3.4n</strong> for random pivots.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Why group size 5? (And why not 3?)</h2>
+  <div class="cols">
+    <div class="small">
+      <p>For odd group size \(g\), about half the groups contribute \(\frac{g+1}{2}\) elements on each side of \(x\):</p>
+      \[\text{discarded}\ \gtrsim\ \frac{g+1}{4g}\,n,\qquad |L|,|R|\ \lesssim\ \frac{3g-1}{4g}\,n.\]
+      <p>Sizes of the two recursive calls: \(\frac{n}{g}+\frac{3g-1}{4g}n=\frac{3g+3}{4g}\,n&lt;n\iff g&gt;3\).</p>
+      <table class="tight">
+        <tr><th>\(g\)</th><th>Recurrence</th><th>Result</th></tr>
+        <tr><td>3</td><td>\(T(n/3)+T(2n/3)+O(n)\)</td><td>\(\Theta(n\log n)\)</td></tr>
+        <tr class="hl"><td>5</td><td>\(T(n/5)+T(7n/10)+O(n)\)</td><td>\(\Theta(n)\)</td></tr>
+        <tr><td>7</td><td>\(T(n/7)+T(5n/7)+O(n)\)</td><td>\(\Theta(n)\)</td></tr>
+      </table>
+    </div>
+    <div class="box q small"><span class="label">Think · 2 min</span>
+      Larger groups make the fractions smaller, but sorting each group costs more. What does this trade-off look like? Is group size 3 <em>actually</em> slow in practice? (See Block C.)</div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Choosing a selection method</h1>
+  <p>Guarantees · measurements · scenarios</p>
+</section>
+
+<section class="slide">
+  <h2>Four ways to find the \(k\)-th smallest</h2>
+  <table class="small">
+    <tr><th>Method</th><th>Time</th><th>Guarantee type</th><th>Extra space</th><th>Robust to adversarial input?</th></tr>
+    <tr><td>Sort, then index</td><td>\(\Theta(n\log n)\)</td><td>worst case</td><td>\(O(1)\)–\(O(n)\)</td><td>yes; answers <em>all</em> ranks afterwards</td></tr>
+    <tr><td>Heap: build + \(k\) extract-min</td><td>\(\Theta(n+k\log n)\)</td><td>worst case</td><td>\(O(1)\) in place</td><td>yes</td></tr>
+    <tr><td>Size-\(k\) heap over a stream</td><td>\(\Theta(n\log k)\)</td><td>worst case</td><td>\(\Theta(k)\)</td><td>yes; works on streams</td></tr>
+    <tr><td>Randomized quickselect</td><td>\(\Theta(n)\)</td><td><strong>expected</strong> (\(\Theta(n^2)\) worst)</td><td>\(O(1)\) iterative</td><td>yes, <em>if</em> the adversary cannot predict the pivots</td></tr>
+    <tr><td>Median of medians</td><td>\(\Theta(n)\)</td><td>worst case</td><td>\(O(\log n)\) stack</td><td>yes, but with a large constant</td></tr>
+    <tr class="hl"><td>Introselect (<code>std::nth_element</code>)</td><td>\(\Theta(n)\) typical</td><td>worst case \(O(n\log n)\) (libstdc++ falls back to heapselect)</td><td>\(O(1)\)</td><td>yes</td></tr>
+  </table>
+  
+</section>
+
+<section class="slide">
+  <h2>Experiment: median selection, measured</h2>
+  <table class="xtight">
+    <tr><th>\(n\)</th><th>input</th><th class="num">QS cmp/\(n\)</th><th class="num">QS ms</th><th class="num">MoM-5 cmp/\(n\)</th><th class="num">MoM-5 ms</th><th class="num">MoM-3 cmp/\(n\)</th><th class="num">MoM-3 ms</th><th class="num">sort cmp/\(n\)</th><th class="num">sort ms</th><th class="num">nth_element ms</th></tr>
+    <tr><td>\(10^5\)</td><td>random</td><td class="num">2.94</td><td class="num">0.7</td><td class="num">8.36</td><td class="num">3.7</td><td class="num">10.05</td><td class="num">3.9</td><td class="num">20.60</td><td class="num">6.9</td><td class="num">0.8</td></tr>
+    <tr><td>\(10^6\)</td><td>random</td><td class="num">3.59</td><td class="num">8.2</td><td class="num">8.42</td><td class="num">37.5</td><td class="num">10.61</td><td class="num">40.8</td><td class="num">23.53</td><td class="num">77.2</td><td class="num">7.7</td></tr>
+    <tr><td>\(10^7\)</td><td>random</td><td class="num">3.40</td><td class="num">97.0</td><td class="num">8.44</td><td class="num">391.1</td><td class="num">10.96</td><td class="num">433.0</td><td class="num">28.04</td><td class="num">927.0</td><td class="num">82.7</td></tr>
+    <tr><td>\(10^7\)</td><td>sorted</td><td class="num">3.72</td><td class="num">46.6</td><td class="num">7.29</td><td class="num">141.8</td><td class="num">7.88</td><td class="num">179.1</td><td class="num">31.65</td><td class="num">532.5</td><td class="num">18.3</td></tr>
+  </table>
+  <p class="xsmall muted">Distinct 64-bit keys, \(k=n/2\); comparisons counted; time = median of 5 runs; g++ 15.2 -O2. <code>Student_Resources/selection_bench.cpp</code>.</p>
+  <div class="box q small"><span class="label">Interpret · 4 min</span>
+    (1) Which column confirms a theorem, and which theorem? (2) MoM-3 is \(\Theta(n\log n)\) in the worst case. Does the data show it? (3) Why is everything faster on sorted input?</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: pick the method (and defend it)</h2>
+  <ol class="small">
+    <li>A public web API returns the median of a client-supplied array (\(n\le10^6\)) under a strict latency SLO. Attackers may submit crafted arrays.</li>
+    <li>A stream of \(10^{10}\) events; report the <strong>100 largest</strong> values at the end. Memory: 1 GB.</li>
+    <li>A fixed data set of \(n=10^8\) values will receive \(10^5\) rank queries with different \(k\) over the next hour.</li>
+    <li>An in-memory array of \(n=10^9\) values; one report of the 1st, 2nd, …, 99th percentiles.</li>
+  </ol>
+  <div class="box q small"><span class="label">Groups · 12 min</span>For each: the method, its cost with the guarantee type, and the <strong>assumption</strong> that, if it changed, would change your answer.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>Write the recurrence from the algorithm: number of subproblems, their sizes, non-recursive work.</li>
+      <li>Recursion tree to <strong>guess</strong>; substitution to <strong>prove</strong>, with the exact hypothesis (strengthen if needed).</li>
+      <li>Master theorem: compare \(f(n)\) with \(n^{\log_b a}\); needs a polynomial gap (cases 1/3) plus regularity (case 3). Know the gaps and the unequal-split cases.</li>
+      <li>Selection is \(\Theta(n)\), strictly easier than sorting: expected via random pivots, worst case via median of medians (\(\frac15+\frac7{10}&lt;1\)).</li>
+      <li>Choosing a method depends on the guarantee type, the constants, the adversary, the memory, and the number of queries.</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L03 (Sat 10 Oct)</span>
+      Randomized algorithms properly: Las Vegas vs. Monte Carlo, expected time vs. failure probability, indicator-variable analysis of quicksort and quickselect, amplification.
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> CLRS 4e Ch. 5, 7.3–7.4, 9.2. <strong>PS1</strong> released today, due Sat 17 Oct. <strong>Project specification</strong> next week.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

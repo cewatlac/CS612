@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L10 — Shortest Paths as an Algorithm-Selection Problem (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 10 · Sat 28 Nov 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 10<br>Shortest Paths as an<br>Algorithm-Selection Problem</h1>
+  <p>Don't memorise five algorithms. Learn which assumption each one needs, and what breaks without it.</p>
+  <div class="meta">Saturday 28 November 2026 · 3 hours<br>Project M4 (working implementation) due today · PS3 due Sat 05 Dec</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem: one product, five problems</h2>
+  <div class="small">
+    <p>A logistics platform needs "shortest paths" in five places:</p>
+    <table>
+      <tr><th></th><th>Setting</th><th>What is special</th></tr>
+      <tr><td>1</td><td>Hops between warehouses in a courier network</td><td>unweighted</td></tr>
+      <tr><td>2</td><td>Earliest completion in a task dependency plan</td><td>a DAG; the <em>longest</em> path is wanted</td></tr>
+      <tr><td>3</td><td>Travel time on the road network</td><td>non-negative weights, sparse, huge</td></tr>
+      <tr><td>4</td><td>Net cost with fuel rebates</td><td>some <em>negative</em> edges</td></tr>
+      <tr><td>5</td><td>Currency conversions for payouts</td><td>a negative <em>cycle</em> = arbitrage</td></tr>
+    </table>
+  </div>
+  <div class="box q small"><span class="label">Discuss · 3 min</span>For which of these is Dijkstra's algorithm <strong>wrong</strong>, and for which is it merely <strong>slower than necessary</strong>?</div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>Choosing by assumption</h1>
+  <p>Relaxation · BFS · DAGs · Dijkstra · small integer weights</p>
+</section>
+
+<section class="slide">
+  <h2>The assumption map</h2>
+  <table class="small">
+    <tr><th>Assumption</th><th>Single source</th><th>All pairs</th></tr>
+    <tr><td>Unweighted</td><td>BFS \(O(n+m)\)</td><td>\(n\) × BFS: \(O(n(n+m))\)</td></tr>
+    <tr><td>DAG (any weights)</td><td>topological relaxation \(O(n+m)\)</td><td>\(n\) × that</td></tr>
+    <tr><td>Integer weights in \([0,C]\)</td><td>Dial buckets \(O(m+nC)\); 0/1 weights: 0-1 BFS \(O(n+m)\)</td><td>\(n\) × that</td></tr>
+    <tr><td>Non-negative weights</td><td>Dijkstra: \(O((n+m)\log n)\) binary heap; \(O(n^2)\) array; \(O(m+n\log n)\) Fibonacci heap</td><td>\(n\) × Dijkstra, or Floyd–Warshall if dense</td></tr>
+    <tr><td>Negative edges, no negative cycle</td><td>Bellman–Ford \(O(nm)\)</td><td>Johnson \(O(nm+n(n+m)\log n)\); Floyd–Warshall \(O(n^3)\)</td></tr>
+    <tr><td>Negative cycles possible</td><td colspan="2">detect with Bellman–Ford (or FW: \(d[i][i]&lt;0\)); the <em>shortest simple path</em> is NP-hard</td></tr>
+  </table>
+  <div class="box key small" style="margin-top:10px">Read the table <strong>top-down</strong>: use the first row whose assumption your instance satisfies. Every row down pays for a weaker assumption.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Relaxation: the one operation they all share</h2>
+  <div class="cols">
+    <div class="small">
+      <pre class="pseudo sm">RELAX(u, v)
+  if d[u] + w(u,v) &lt; d[v]
+      d[v] = d[u] + w(u,v) ; parent[v] = u</pre>
+      <p>Initialise \(d[s]=0\) and \(d[v]=\infty\) otherwise. Let \(\delta(v)\) be the true distance.</p>
+      <div class="box thm"><span class="label">Upper-bound invariant</span>At all times \(d[v]\ge\delta(v)\), and \(d[v]\) (when finite) is the length of some actual \(s\)–\(v\) walk. It never increases.</div>
+      <div class="box thm"><span class="label">Path-relaxation property</span>If \(s=v_0,v_1,\dots,v_k\) is a shortest path and its edges are relaxed <strong>in this order</strong> (other relaxations may be interleaved), then afterwards \(d[v_k]=\delta(v_k)\).</div>
+    </div>
+    <div class="box key small"><span class="label">Each algorithm is a relaxation order</span>
+      <ul>
+        <li><strong>DAG:</strong> topological order: every path's edges are relaxed in order.</li>
+        <li><strong>Dijkstra:</strong> in order of final distance, which needs \(w\ge0\).</li>
+        <li><strong>Bellman–Ford:</strong> all edges, \(n-1\) times, so any path of \(\le n-1\) edges gets its edges relaxed in order.</li>
+      </ul>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Dijkstra: why non-negative weights are essential</h2>
+  <div class="small">
+    <p>Dijkstra repeatedly extracts the unvisited vertex \(u\) with minimum \(d[u]\), marks it final, and relaxes its out-edges.</p>
+    <div class="box thm"><span class="label">Claim</span>When \(u\) is extracted, \(d[u]=\delta(u)\).</div>
+    <div class="box proof"><span class="label">Proof</span>Suppose not, and let \(u\) be the first extracted vertex with \(d[u]&gt;\delta(u)\). Take a shortest \(s\)–\(u\) path and let \(y\) be its first vertex not yet extracted, with predecessor \(x\) (extracted, so \(d[x]=\delta(x)\)). Since \(x\) was relaxed, \(d[y]=\delta(y)\). The rest of the path from \(y\) to \(u\) has <strong>non-negative length</strong>, so \(\delta(y)\le\delta(u)\). Hence \(d[y]=\delta(y)\le\delta(u)&lt;d[u]\), yet \(u\) was extracted before \(y\) (the minimum): a contradiction.</div>
+    <table class="tight">
+      <tr><th>Priority queue</th><th>insert / decrease</th><th>extract-min</th><th>Dijkstra total</th></tr>
+      <tr><td>array</td><td>\(O(1)\)</td><td>\(O(n)\)</td><td>\(O(n^2+m)\)</td></tr>
+      <tr><td>binary heap (lazy or decrease-key)</td><td>\(O(\log n)\)</td><td>\(O(\log n)\)</td><td>\(O((n+m)\log n)\)</td></tr>
+      <tr><td>Fibonacci heap</td><td>\(O(1)\) amortized</td><td>\(O(\log n)\) amortized</td><td>\(O(m+n\log n)\)</td></tr>
+    </table>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Cheaper special cases: DAGs and small integer weights</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>DAG shortest (or longest) paths</h3>
+      <pre class="pseudo sm">for u in topological order
+    for each edge (u, v): RELAX(u, v)</pre>
+      <p>Correct for <strong>any</strong> weights: by the path-relaxation property, every path's edges are relaxed in order. \(O(n+m)\). The longest path in a DAG = the shortest with negated weights: <strong>critical path</strong> scheduling.</p>
+    </div>
+    <div class="small">
+      <h3>Integer weights in \([0,C]\)</h3>
+      <ul>
+        <li><strong>Dial:</strong> buckets indexed by distance (a circular array of \(C+1\) buckets). \(O(m+nC)\) (pseudo-polynomial in \(C\): L07!).</li>
+        <li><strong>0-1 BFS:</strong> weights in \(\{0,1\}\). Use a deque: push the target of a 0-edge to the front and of a 1-edge to the back. \(O(n+m)\).</li>
+        <li>Radix heaps: \(O(m+n\log C)\), polynomial in the input length.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="box warn small">Longest paths are easy in DAGs and <strong>NP-hard</strong> in general graphs. The DAG assumption is doing all the work.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: select and justify</h2>
+  <ol class="small">
+    <li><strong>Arbitrage.</strong> Exchange rates \(r_{ij}\) between 150 currencies. Detect whether a cycle of conversions gains money. Model it as a shortest-path problem and choose the algorithm.</li>
+    <li><strong>Grid game.</strong> A \(2000\times2000\) grid; entering a cell costs 0 (road) or 1 (mud). Minimum cost from corner to corner.</li>
+    <li><strong>Build plan.</strong> 50,000 build tasks with durations and dependencies. What is the earliest possible completion time of the whole build?</li>
+    <li><strong>Continental routing.</strong> \(n=2\times10^7\) road junctions, non-negative travel times, millions of queries per hour. Which algorithm per query? What would you add beyond this lecture?</li>
+  </ol>
+  <p class="small muted">Pairs · 8 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Negative weights and all pairs</h1>
+  <p>Bellman–Ford · potentials · Johnson · Floyd–Warshall</p>
+</section>
+
+<section class="slide">
+  <h2>Bellman–Ford: correctness and negative cycles</h2>
+  <div class="cols">
+    <div class="small">
+      <pre class="pseudo sm">BELLMAN-FORD(G, s)
+  initialise d
+  repeat n − 1 times
+      for each edge (u,v): RELAX(u,v)
+      if nothing changed: stop early
+  for each edge (u,v)
+      if d[u] + w(u,v) &lt; d[v]: report "negative cycle reachable from s"</pre>
+      <p><strong>Correctness:</strong> with no negative cycle reachable from \(s\), every vertex has a shortest path that is <em>simple</em>, with \(\le n-1\) edges. Round \(i\) relaxes its \(i\)-th edge in order (path relaxation). <strong>Detection:</strong> if no edge can be relaxed, summing \(d[v]\le d[u]+w(u,v)\) around any reachable cycle gives cycle weight \(\ge0\).</p>
+    </div>
+    <div class="stack small">
+      <div class="box key"><span class="label">Practical points</span>
+        <ul>
+          <li><strong>Early termination:</strong> the number of rounds is at most (edges on a shortest-path tree's deepest path) + 1. In our experiment: 15 rounds, not 200,000.</li>
+          <li><strong>Whole-graph detection:</strong> add a virtual source with 0-edges to every vertex.</li>
+        </ul>
+      </div>
+      <div class="box bad"><span class="label">Legacy corrections</span>
+        <ul>
+          <li>"Run BF per connected component" does not work for directed graphs: use the virtual source.</li>
+          <li>The queue-based variant stopped after \(n\) <em>total</em> pops and reported a cycle. That is wrong: count relaxations <em>per vertex</em> (or path lengths ≥ n).</li>
+          <li>An undirected edge of negative weight is itself a negative cycle.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Potentials and reduced costs</h2>
+  <div class="small">
+    <div class="box defn"><span class="label">Reduced cost</span>For any function \(h:V\to\mathbb R\) (a <em>potential</em>), let \(w_h(u,v)=w(u,v)+h(u)-h(v)\).</div>
+    <div class="cols">
+      <div>
+        <p><strong>Telescoping:</strong> for any \(s\)–\(t\) path \(P\): \(w_h(P)=w(P)+h(s)-h(t)\). Every \(s\)–\(t\) path shifts by the <strong>same</strong> constant, so shortest paths are preserved. Cycles keep their weight.</p>
+        <p><strong>Feasible potential:</strong> \(w_h\ge0\) everywhere. It exists <strong>iff</strong> there is no negative cycle.</p>
+        <p><strong>How to find one:</strong> \(h(v)=\delta(q,v)\) from a virtual source \(q\). The triangle inequality \(\delta(q,v)\le\delta(q,u)+w(u,v)\) gives \(w_h(u,v)\ge0\).</p>
+      </div>
+      <div class="box key"><span class="label">Why this matters</span>
+        <ul>
+          <li>Johnson's algorithm (next slide)</li>
+          <li><strong>A*:</strong> a heuristic \(\pi\) is <em>consistent</em> iff \(w_{-\pi}\ge0\) (reduced costs non-negative); A* = Dijkstra on reduced costs</li>
+          <li>Min-cost flow: potentials keep residual costs non-negative (L12 outlook)</li>
+          <li>LP duality: potentials are dual variables</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Johnson's algorithm and Floyd–Warshall</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>Johnson (1977)</h3>
+      <ol>
+        <li>Add a virtual source \(q\); run Bellman–Ford: \(h(v)=\delta(q,v)\), or report a negative cycle. \(O(nm)\).</li>
+        <li>Reweight to \(w_h\ge0\).</li>
+        <li>Dijkstra from every vertex on \(w_h\): \(n\cdot O((n+m)\log n)\).</li>
+        <li>\(\delta(u,v)=\delta_h(u,v)-h(u)+h(v)\).</li>
+      </ol>
+      <p>Total \(O(nm+n(n+m)\log n)\) with a binary heap; \(O(nm+n^2\log n)\) with a Fibonacci heap. Best for <strong>sparse</strong> graphs.</p>
+    </div>
+    <div class="small">
+      <h3>Floyd–Warshall</h3>
+      <p>\(D_k[i][j]\) = the shortest \(i\)–\(j\) path with intermediate vertices in \(\{1..k\}\):</p>
+      \[D_k[i][j]=\min\big(D_{k-1}[i][j],\ D_{k-1}[i][k]+D_{k-1}[k][j]\big).\]
+      <p>In-place update is safe (row and column \(k\) do not change in round \(k\) without negative cycles). \(\Theta(n^3)\) time, \(\Theta(n^2)\) space; simple and cache-friendly. Negative cycle ⇔ some \(D[i][i]&lt;0\) at the end.</p>
+    </div>
+  </div>
+  <div class="box key small">Sparse (\(m=O(n)\)): Johnson \(\approx n^2\log n\) ≪ FW \(n^3\). Dense (\(m\approx n^2\)): both \(\approx n^3\), and FW's simplicity usually wins.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise B: reasoning with assumptions</h2>
+  <ol class="small">
+    <li>Bellman–Ford with early termination on a graph whose shortest-path tree has depth \(d\): how many rounds? Can the edge order within a round make it faster? (Try an order for a path graph.)</li>
+    <li>Johnson on a graph that has <strong>no</strong> negative edges: is step 1 needed? What potential does it compute?</li>
+    <li>Show that Floyd–Warshall computes the <strong>transitive closure</strong> if you replace \((\min,+)\) by \((\lor,\land)\). What other "semiring" problems fit the same loops?</li>
+    <li>Shortest path using <strong>at most \(k\) edges</strong> (e.g. a flight search limited to \(k\) legs). Modify Bellman–Ford. Which subtle bug must you avoid inside a round?</li>
+  </ol>
+  <p class="small muted">Pairs · 8 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Evidence and design</h1>
+  <p>Three measurements · one design exercise</p>
+</section>
+
+<section class="slide">
+  <h2>Experiments: assumptions and implementations, measured</h2>
+  <div class="small">
+    <p><strong>1. Sparse, \(n=2\times10^5\), \(m=10^6\), integer weights in \([0,100]\)</strong> (ms): BFS 30.6 (wrong answer) · Dijkstra, binary heap 107.2 · Dial 31.0 · Bellman–Ford 109.5 (<strong>15 rounds</strong>, not \(n\)). All weighted algorithms agree.</p>
+    <div class="cols">
+      <table class="tight">
+        <tr><th colspan="4">2. Dijkstra, \(n=5000\) (ms)</th></tr>
+        <tr><th class="num">\(m/n\)</th><th class="num">binary heap</th><th class="num">array \(O(n^2)\)</th></tr>
+        <tr><td class="num">5</td><td class="num">0.7</td><td class="num">22.6</td></tr>
+        <tr><td class="num">50</td><td class="num">3.8</td><td class="num">30.4</td></tr>
+        <tr><td class="num">500</td><td class="num">10.1</td><td class="num">31.5</td></tr>
+        <tr><td class="num">4999</td><td class="num">72.8</td><td class="num">131.4</td></tr>
+      </table>
+      <table class="tight">
+        <tr><th colspan="3">3. All pairs, negative edges, \(n=1200\) (ms)</th></tr>
+        <tr><th class="num">\(m/n\)</th><th class="num">Johnson</th><th class="num">Floyd–Warshall</th></tr>
+        <tr><td class="num">4</td><td class="num">168</td><td class="num">1229</td></tr>
+        <tr><td class="num">40</td><td class="num">485</td><td class="num">1673</td></tr>
+        <tr><td class="num">400</td><td class="num">1399</td><td class="num">1705</td></tr>
+      </table>
+    </div>
+    <p class="xsmall muted">Random digraphs; negative weights created by a random potential (so no negative cycles); <code>Student_Resources/sp_bench.cpp</code>, g++ 15.2 -O2.</p>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: design with assumptions</h2>
+  <ol class="small">
+    <li><strong>Time-dependent tolls</strong>: an edge's cost is \(w(u,v)\), plus a toll \(t_v\ge0\) charged at a vertex only on weekdays; queries say whether it is a weekday. Two options: preprocess, or adapt at query time. Which do you choose?</li>
+    <li><strong>Unit-capacity reliability</strong>: each edge fails independently with probability \(p_e\). Find the path most likely to survive. Reduce it to a shortest-path problem, and name the algorithm and the assumption you rely on.</li>
+    <li><strong>Widest path.</strong> Each edge has a capacity. Find the \(s\)–\(t\) path that maximises the minimum capacity along it. Modify Dijkstra, and identify the property of \(\min\) that replaces "non-negative weights" in the proof.</li>
+    <li><strong>An experiment you would run</strong> to decide between Dial and a binary heap for road networks with integer travel times in seconds (\(C\approx3600\)). What is your hypothesis, and what would refute it?</li>
+  </ol>
+  <p class="small muted">Groups · 15 min</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>Shortest paths are one problem with many assumptions: unweighted, DAG, small integers, non-negative, negative edges, negative cycles, sparse/dense, single/all pairs.</li>
+      <li>All algorithms are relaxation orders. The proofs use the upper-bound invariant + path relaxation, and Dijkstra adds one line that needs \(w\ge0\).</li>
+      <li>Name the priority queue: array \(n^2\), binary heap \((n+m)\log n\), Fibonacci \(m+n\log n\).</li>
+      <li>Potentials make negative edges harmless when there are no negative cycles (Johnson), and they explain A*.</li>
+      <li>Measurements can contradict worst-case intuition (heap Dijkstra on dense random graphs). Know which input families you tested.</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L11 (Sat 05 Dec)</span>
+      String algorithms: rolling hashes and collision probability, Rabin–Karp, KMP, tries, Aho–Corasick.
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> CLRS 4e Ch. 32. <strong>PS3 due Sat 05 Dec.</strong></p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L03 — Randomized Algorithms &amp; Probabilistic Analysis (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 03 · Sat 10 Oct 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 03<br>Randomized Algorithms &amp;<br>Probabilistic Analysis</h1>
+  <p>Randomness as a design tool: what exactly is guaranteed, over what, and against whom?</p>
+  <div class="meta">Saturday 10 October 2026 · 3 hours<br>Project specification released today · PS1 due Sat 17 Oct</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Where we are</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>L02 left two loose ends</h3>
+      <ul>
+        <li>Randomized quickselect: "expected \(O(n)\)", with an intuitive argument. Where exactly does \(3.4n\) come from?</li>
+        <li>"Robust to adversarial input <em>if</em> the adversary cannot predict the pivots". What does that mean formally?</li>
+      </ul>
+    </div>
+    <div class="box key">
+      <span class="label">Today</span>
+      A precise vocabulary for randomized guarantees (<strong>Las Vegas / Monte Carlo</strong>, expected time, failure probability, adversary model) and the core technique: <strong>indicator random variables + linearity of expectation</strong>.
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Two motivating problems</h2>
+  <div class="cols">
+    <div class="card small">
+      <h3>1 · The killer adversary</h3>
+      <p>McIlroy (1999) wrote a short program that, <em>while</em> a library's quicksort runs, answers its comparisons so as to force \(\Theta(n^2)\) behaviour for essentially any deterministic pivot rule, including median-of-3.</p>
+      <p>Real systems have been attacked with crafted inputs (sorting, hashing).</p>
+      <p class="muted">Can any algorithm be safe against this?</p>
+    </div>
+    <div class="card small">
+      <h3>2 · Trust but verify</h3>
+      <p>A GPU service returns \(C\) and claims \(C=AB\) for \(n\times n\) matrices. Recomputing \(AB\) costs \(\Theta(n^3)\) (or \(n^{2.8}\)).</p>
+      <p>Can we check the claim in \(O(n^2)\) time, if we accept a tiny chance of being fooled?</p>
+    </div>
+  </div>
+  <div class="box q small"><span class="label">Discuss · 3 min</span>For each: what would "safe" or "checked" mean <em>precisely</em>? What are we willing to give up?</div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>What does a randomized algorithm guarantee?</h1>
+  <p>Las Vegas vs. Monte Carlo · expected time · adversaries · amplification</p>
+</section>
+
+<section class="slide">
+  <h2>Why randomize?</h2>
+  <table class="small">
+    <tr><th>Reason</th><th>Mechanism</th><th>Examples in CS612</th></tr>
+    <tr><td><strong>Defeat the adversary</strong></td><td>No fixed input is bad for all random choices</td><td>randomized quicksort/quickselect (today), universal hashing (L04)</td></tr>
+    <tr><td><strong>Fingerprinting</strong></td><td>Compare short random "sketches" instead of large objects</td><td>Freivalds (today), Rabin–Karp (L11)</td></tr>
+    <tr><td><strong>Simplicity</strong></td><td>Random structure replaces complex balancing rules</td><td>skip lists vs. red-black trees (L04), treaps</td></tr>
+    <tr><td><strong>Sampling</strong></td><td>A small random sample represents the whole</td><td>percentile estimation, reservoir sampling (exercise)</td></tr>
+    <tr><td><strong>Symmetry breaking</strong></td><td>Random choices resolve ties/conflicts without coordination</td><td>distributed algorithms (not covered)</td></tr>
+  </table>
+  <div class="box warn small" style="margin-top:12px">Randomization is not "hoping the input is random". The <strong>algorithm</strong> flips the coins; the input can be the worst possible.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Las Vegas vs. Monte Carlo</h2>
+  <table class="small">
+    <tr><th></th><th>Las Vegas</th><th>Monte Carlo</th></tr>
+    <tr><td>Answer</td><td><strong>always correct</strong></td><td>correct with probability \(\ge 1-\delta\)</td></tr>
+    <tr><td>Running time</td><td>random: we bound \(\mathbb E[T]\) (and its tail)</td><td>bounded (usually deterministic)</td></tr>
+    <tr><td>Examples</td><td>randomized quicksort, quickselect; Rabin–Karp <em>with</em> verification; skip-list search</td><td>Freivalds; Miller–Rabin primality; Rabin–Karp <em>without</em> verification</td></tr>
+    <tr><td>Error types</td><td>none (only slowness)</td><td><strong>one-sided</strong> (e.g. never rejects a correct \(C\)) or <strong>two-sided</strong></td></tr>
+  </table>
+  <div class="cols small" style="margin-top:12px">
+    <div class="box key"><span class="label">LV → MC</span>Stop after \(2\,\mathbb E[T]\) steps and output "fail". By Markov, \(\Pr[T\ge 2\mathbb E[T]]\le\frac12\).</div>
+    <div class="box key"><span class="label">MC → LV</span>Possible if answers can be <strong>verified</strong>: repeat until a verified answer appears. Expected trials \(=1/p\).</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>"Expected time" means something precise</h2>
+  <div class="cols">
+    <div class="small">
+      \[T_{\text{exp}}(n)=\max_{|x|=n}\ \mathbb E_{r}\big[T(x,r)\big]\]
+      <ul>
+        <li>The <strong>max over inputs</strong> is outside: a worst-case input, chosen first.</li>
+        <li>The <strong>expectation over our coins</strong> is inside.</li>
+        <li>Contrast with average case: \(\mathbb E_{x\sim\mathcal D}[T(x)]\), which trusts a model of the inputs.</li>
+      </ul>
+      <p><strong>Adversary models</strong></p>
+      <ul>
+        <li><strong>Oblivious:</strong> fixes the input (or operation sequence) before any coin flip. Our guarantees hold.</li>
+        <li><strong>Adaptive:</strong> sees our random choices (or can predict them) and reacts. Expected-time guarantees can fail.</li>
+      </ul>
+    </div>
+    <div class="box warn small">
+      <span class="label">Where adaptive adversaries appear</span>
+      <ul>
+        <li>A predictable random generator: fixed seed, time-based seed</li>
+        <li>An online data structure whose behaviour (timing!) leaks the random choices</li>
+        <li>Hash functions with a public seed: hash flooding (L04)</li>
+      </ul>
+      <p style="margin-top:8px">Engineering rule: seed from a good entropy source <strong>once</strong>, keep the seed secret where attackers exist, and <strong>log it</strong> for reproducibility.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Freivalds' algorithm (1977)</h2>
+  <div class="cols wide-l">
+    <div class="small">
+      <pre class="pseudo ln">FREIVALDS(A, B, C, k)       ▷ n × n matrices
+  repeat k times
+      choose r ∈ {0,1}ⁿ uniformly at random
+      if A·(B·r) ≠ C·r         ▷ three matrix–vector products
+          return "C ≠ AB"       ▷ certainly correct
+  return "C = AB"               ▷ possibly wrong</pre>
+      <p>Cost: \(O(kn^2)\) instead of \(\Theta(n^3)\).</p>
+    </div>
+    <div class="box thm small"><span class="label">Theorem</span>
+      If \(C=AB\), the algorithm always accepts. If \(C\ne AB\), one trial rejects with probability \(\ge\frac12\), so the algorithm wrongly accepts with probability \(\le 2^{-k}\).
+      <p class="small" style="margin-top:8px">Monte Carlo with <strong>one-sided error</strong>.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Proof: the principle of deferred decisions</h2>
+  <div class="box proof small"><span class="label">Proof</span>
+    Let \(D=AB-C\ne 0\), so some entry \(d_{ij}\ne0\). A trial accepts iff \(Dr=0\), which implies \((Dr)_i=0\):
+    \[(Dr)_i=\sum_{\ell}d_{i\ell}r_\ell=d_{ij}r_j+y,\qquad y=\sum_{\ell\ne j}d_{i\ell}r_\ell .\]
+    Condition on all coordinates except \(r_j\), which fixes \(y\). Then \((Dr)_i=0\) iff \(r_j=-y/d_{ij}\). At most one of the two values \(r_j\in\{0,1\}\) satisfies this, so
+    \[\Pr[Dr=0]\le\Pr[(Dr)_i=0]\le\tfrac12 .\]
+    The \(k\) trials are independent, so \(\Pr[\text{all accept}]\le2^{-k}\).
+  </div>
+  <div class="box key small"><span class="label">Technique</span><strong>Deferred decisions:</strong> fix all random choices except one, then show that the bad event constrains that last choice.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Amplification: how many repetitions?</h2>
+  <div class="cols small">
+    <div>
+      <h3>One-sided error \(p\)</h3>
+      <p>Repeat \(k\) times, and accept only if all runs accept: error \(\le p^k\).</p>
+      <p>For \(\delta\): \(k=\lceil\log(1/\delta)/\log(1/p)\rceil\). Freivalds: \(\delta=10^{-9}\) needs \(k=30\).</p>
+      <h3>Two-sided error \(\le\frac12-\varepsilon\)</h3>
+      <p>Repeat \(k\) times and take the <strong>majority</strong>. Chernoff–Hoeffding:</p>
+      \[\Pr[\text{majority wrong}]\le e^{-2\varepsilon^2k}.\]
+      <p>So \(k=O(\varepsilon^{-2}\log(1/\delta))\).</p>
+    </div>
+    <div class="stack">
+      <div class="box key"><span class="label">Cost of certainty</span>Each factor of 10 in confidence costs a <em>constant</em> number of extra trials: \(\log_2 10\approx3.3\) for Freivalds.</div>
+      <div class="box warn"><span class="label">Independence is essential</span>Re-running with the <strong>same</strong> random bits (e.g. re-seeding with the same time value) gives the same error again, and amplification does nothing.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: classify the guarantee</h2>
+  <table class="small">
+    <tr><th>Algorithm</th><th>LV or MC?</th><th>One/two-sided?</th><th>What is random, and what is bounded?</th></tr>
+    <tr><td>Randomized quicksort</td><td></td><td></td><td></td></tr>
+    <tr><td>Freivalds</td><td></td><td></td><td></td></tr>
+    <tr><td>Miller–Rabin primality test</td><td></td><td></td><td></td></tr>
+    <tr><td>Rabin–Karp, report on hash match</td><td></td><td></td><td></td></tr>
+    <tr><td>Rabin–Karp, verify each hash match</td><td></td><td></td><td></td></tr>
+    <tr><td>Estimate the median from a random sample of 1000 values</td><td></td><td></td><td></td></tr>
+  </table>
+  <p class="small muted">Pairs · 6 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Analysing randomized quicksort and quickselect</h1>
+  <p>Indicators · linearity of expectation · exact constants · concentration</p>
+</section>
+
+<section class="slide">
+  <h2>Randomized quicksort: what to count</h2>
+  <div class="cols">
+    <pre class="pseudo ln">RQS(A, lo, hi)
+  if lo &lt; hi
+      p = uniform random index in [lo, hi]
+      swap A[p], A[hi]
+      q = PARTITION(A, lo, hi)   ▷ Lomuto
+      RQS(A, lo, q − 1)
+      RQS(A, q + 1, hi)</pre>
+    <div class="small">
+      <p>Let the keys in sorted order be \(z_1&lt;z_2&lt;\dots&lt;z_n\) (distinct).</p>
+      <ul>
+        <li>Running time \(=\Theta(n+X)\), where \(X\) = the total number of key comparisons.</li>
+        <li>Every comparison is between the <strong>current pivot</strong> and another element of its subarray.</li>
+        <li>So each pair \(z_i,z_j\) is compared <strong>at most once</strong>: after partitioning, the pivot is never used again.</li>
+      </ul>
+      \[X=\sum_{i&lt;j}X_{ij},\qquad X_{ij}=\mathbb 1[z_i\text{ and }z_j\text{ are compared}]\]
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>The key lemma</h2>
+  <div class="box thm small"><span class="label">Lemma</span>\(\Pr[z_i\text{ and }z_j\text{ are compared}]=\dfrac{2}{j-i+1}\) for \(i&lt;j\).</div>
+  <div class="cols wide-l">
+    <div class="box proof small"><span class="label">Proof</span>
+      Let \(Z_{ij}=\{z_i,z_{i+1},\dots,z_j\}\), so \(|Z_{ij}|=j-i+1\). Until some element of \(Z_{ij}\) becomes a pivot, all of \(Z_{ij}\) stay in the same subarray, because any pivot outside \(Z_{ij}\) is smaller or larger than all of them. Consider the <strong>first</strong> pivot chosen from \(Z_{ij}\):
+      <ul>
+        <li>If it is \(z_i\) or \(z_j\): the two are compared (the pivot meets every element of its subarray).</li>
+        <li>If it is some \(z_\ell\) with \(i&lt;\ell&lt;j\): \(z_i\) and \(z_j\) are separated forever and never compared.</li>
+      </ul>
+      Each element of \(Z_{ij}\) is equally likely to be that first pivot (pivots are uniform within the current subarray, which contains all of \(Z_{ij}\)). So the probability is \(2/(j-i+1)\).
+    </div>
+    <svg viewBox="0 0 420 200" width="400">
+      <g font-size="15">
+        <line x1="10" y1="90" x2="410" y2="90" stroke="#46505e" stroke-width="2"/>
+        <g fill="#fff" stroke="#172b45" stroke-width="2">
+          <circle cx="40" cy="90" r="9"/><circle cx="80" cy="90" r="9"/><circle cx="330" cy="90" r="9"/><circle cx="380" cy="90" r="9"/>
+        </g>
+        <circle cx="120" cy="90" r="11" fill="#e6eff8" stroke="#1f5f99" stroke-width="3"/>
+        <circle cx="170" cy="90" r="9" fill="#fff" stroke="#172b45" stroke-width="2"/><circle cx="215" cy="90" r="9" fill="#fff" stroke="#172b45" stroke-width="2"/><circle cx="260" cy="90" r="9" fill="#fff" stroke="#172b45" stroke-width="2"/>
+        <circle cx="300" cy="90" r="11" fill="#e6eff8" stroke="#1f5f99" stroke-width="3"/>
+        <text x="120" y="125" text-anchor="middle" fill="#1f5f99">zᵢ</text><text x="300" y="125" text-anchor="middle" fill="#1f5f99">zⱼ</text>
+        <rect x="100" y="60" width="220" height="60" fill="none" stroke="#1f5f99" stroke-dasharray="6 4"/>
+        <text x="210" y="50" text-anchor="middle" fill="#1f5f99">Z_ij : j − i + 1 keys</text>
+        <text x="210" y="165" text-anchor="middle" fill="#46505e">first pivot inside the box decides:</text>
+        <text x="210" y="188" text-anchor="middle" fill="#46505e">an endpoint → compared · interior → never</text>
+      </g>
+    </svg>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Summing: \(\mathbb E[X]\approx1.39\,n\log_2 n\)</h2>
+  <div class="small">
+    \[\mathbb E[X]=\sum_{i=1}^{n-1}\sum_{j=i+1}^{n}\frac{2}{j-i+1}=\sum_{i=1}^{n-1}\sum_{d=2}^{n-i+1}\frac{2}{d}\;&lt;\;2n\,H_n=2n\ln n+O(n).\]
+    <p>Exact value: \(\mathbb E[X]=2(n+1)H_n-4n\). Since \(2\ln n=(2\ln 2)\log_2 n\approx1.386\log_2 n\):</p>
+    <div class="cols">
+      <table class="tight">
+        <tr><th></th><th>comparisons</th></tr>
+        <tr><td>Lower bound \(\lceil\log_2 n!\rceil\) (L01)</td><td>\(n\log_2 n-1.44n\)</td></tr>
+        <tr><td>Merge sort (worst case)</td><td>\(\approx n\log_2 n-n\)</td></tr>
+        <tr class="hl"><td>Randomized quicksort (expected)</td><td>\(\approx1.39\,n\log_2 n-2.85n\)</td></tr>
+      </table>
+      <div class="box key">Quicksort makes about <strong>39% more comparisons</strong> than optimal in expectation. It usually wins anyway: it is in place, has sequential access and a tight inner loop.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Beyond expectation: concentration</h2>
+  <div class="cols">
+    <div class="small">
+      <p>An expectation alone does not rule out frequent slow runs. For quicksort, much more is true:</p>
+      <div class="box thm"><span class="label">Fact (high probability)</span>For any constant \(c\), there is a \(c'\) such that randomized quicksort makes at most \(c'n\ln n\) comparisons with probability \(\ge1-n^{-c}\).</div>
+      <p><strong>Sketch.</strong> Follow one element. At each recursion level its subarray shrinks by a factor \(\le3/4\) with probability \(\ge1/2\) (the pivot lands in the middle half). After \(\log_{4/3}n\) such "good" levels the subarray has size 1. A Chernoff bound shows that more than \(8\log_{4/3}n\) levels occur with probability \(\le n^{-2}\). A union bound over \(n\) elements gives a recursion depth of \(O(\log n)\) with probability \(\ge1-1/n\). Each level costs \(\le n\).</p>
+    </div>
+    <div class="stack small">
+      <div class="box plain"><strong>Spread:</strong> the standard deviation of \(X\) is \(\sim0.65\,n\) (Knuth), while the mean is \(\sim2n\ln n\). Relative spread → 0 as \(n\) grows.</div>
+      <div class="box key"><span class="label">Why engineers care</span>Latency SLOs are about <strong>tails</strong> (p99), not means. A guarantee "with probability \(1-n^{-c}\)" says something about the tail. An expectation alone says nothing.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Randomized quickselect: expected \(\le 4n\) comparisons</h2>
+  <div class="small">
+    <p>Selecting rank \(k\). Pair \(z_i,z_j\) (\(i&lt;j\)) is compared iff the first pivot chosen from \(\{z_{\min(i,k)},\dots,z_{\max(j,k)}\}\) is \(z_i\) or \(z_j\):</p>
+    \[\Pr[z_i,z_j\text{ compared}]=\frac{2}{\max(j,k)-\min(i,k)+1}.\]
+    <p>Split the pairs into three groups:</p>
+    <ul>
+      <li>\(i&lt;j\le k\): probability \(\frac{2}{k-i+1}\), and \(k-i\) such \(j\) per \(i\) → total \(\le2k\).</li>
+      <li>\(k\le i&lt;j\): symmetric → total \(\le2(n-k+1)\).</li>
+      <li>\(i&lt;k&lt;j\): for span \(d=j-i+1\) there are \(\le d-2\) such pairs → \(\sum_d\frac{2(d-2)}{d}\le2n\).</li>
+    </ul>
+    <div class="cols">
+      <div class="box key">\(\mathbb E[\text{comparisons}]\le4n+O(1)\): linear in expectation.</div>
+      <div class="box plain">Exact for the median: \(2(1+\ln2)\,n\approx\mathbf{3.386\,n}\). Measured in L02: 3.4n.</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Implementation: getting the randomness right</h2>
+  <div class="cols">
+    <div class="small">
+      <h3>Legacy code (two bugs)</h3>
+      <pre class="sm"><code>int randomizedPartition(int A[], int low, int high) {
+    srand(time(NULL));                          // BUG 1
+    int randomIndex = low + rand() % (high - low); // BUG 2
+    swap(A[randomIndex], A[high]);
+    return partition(A, low, high);
+}</code></pre>
+      <h3>Correct</h3>
+      <pre class="sm"><code>static std::mt19937_64 rng(seed);  // seeded ONCE; seed logged
+size_t pick(size_t lo, size_t hi) {
+    std::uniform_int_distribution&lt;size_t&gt; d(lo, hi); // inclusive
+    return d(rng);
+}</code></pre>
+    </div>
+    <div class="box q small"><span class="label">Ask</span>
+      <p>1. What does bug 1 do to the "random" pivots within one second?</p>
+      <p>2. Which element can bug 2 never choose? Does that break the \(2/(j-i+1)\) lemma?</p>
+      <p>3. Is <code>rand() % m</code> uniform?</p>
+    </div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Choosing probabilistic guarantees</h1>
+  <p>Questions to ask · an experiment · design exercise</p>
+</section>
+
+<section class="slide">
+  <h2>Five questions before trusting a randomized algorithm</h2>
+  <ol class="small">
+    <li><strong>What can go wrong: time or answer?</strong> (LV vs. MC.) Which failure is acceptable in this application?</li>
+    <li><strong>Over what is the probability taken?</strong> Our coins only? Or also an assumption about inputs?</li>
+    <li><strong>Who is the adversary?</strong> Oblivious (the guarantee holds) or adaptive / able to predict our randomness (it may not)?</li>
+    <li><strong>Can answers be verified?</strong> If so, MC can become LV, and errors can be caught downstream.</li>
+    <li><strong>What does amplification cost?</strong> Repetitions to reach the target \(\delta\), and are the repetitions really independent?</li>
+  </ol>
+  <div class="box key small">And an engineering sixth: <strong>reproducibility</strong>. Log seeds; make experiments rerunnable; separate "secret seed in production" from "fixed seed in testing".</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Experiment: Freivalds in practice</h2>
+  <div class="cols wide-l">
+    <div class="small">
+      <table>
+        <tr><th>\(n=600\), 64-bit integers</th><th class="num">time</th></tr>
+        <tr><td>Classical multiplication \(\Theta(n^3)\)</td><td class="num">114.0 ms</td></tr>
+        <tr class="hl"><td>Freivalds, \(k=30\) trials (error \(\le2^{-30}\))</td><td class="num">15.6 ms</td></tr>
+      </table>
+      <table style="margin-top:14px">
+        <tr><th>Single-trial detection rate (2000 trials)</th><th class="num">measured</th><th class="num">theory</th></tr>
+        <tr><td>\(C\) has <strong>one</strong> wrong entry</td><td class="num">0.490</td><td class="num">0.5</td></tr>
+        <tr><td>One wrong entry in every row (distinct columns)</td><td class="num">1.000</td><td class="num">\(1-2^{-600}\)</td></tr>
+      </table>
+      <p class="xsmall muted"><code>Student_Resources/freivalds.cpp</code>, g++ 15.2 -O2.</p>
+    </div>
+    <div class="box q small"><span class="label">Discuss · 4 min</span>
+      <p>1. How does the time ratio change at \(n=6000\)?</p>
+      <p>2. The single-entry case sits exactly at the bound. Why is the bound tight there?</p>
+      <p>3. What does this experiment <strong>not</strong> tell you about the error probability?</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C: design with randomness</h2>
+  <ol class="small">
+    <li><strong>Budget.</strong> For \(n=10^4\), how many Freivalds trials give error \(\le10^{-12}\)? Compare the cost in scalar multiplications with recomputing \(AB\).</li>
+    <li><strong>LV → MC.</strong> Randomized quickselect uses \(\le4n\) comparisons in expectation. Give a Monte Carlo version that <em>always</em> stops within \(40n\) comparisons, and bound its failure probability. Can you make the failure probability \(2^{-10}\) within \(100n\)?</li>
+    <li><strong>Reservoir sampling (\(k=1\)).</strong> Read a stream \(x_1,x_2,\dots\) of unknown length. Keep \(s=x_1\), and for \(t\ge2\) replace \(s\) by \(x_t\) with probability \(1/t\). Prove that after \(n\) items, \(\Pr[s=x_i]=1/n\) for every \(i\).</li>
+    <li><strong>Adversary.</strong> A web service sorts user-supplied arrays with randomized quicksort, seeded with the server start time, and the response time is visible. Describe an attack, and a fix.</li>
+  </ol>
+  <p class="small muted">Groups · 15 min</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li><strong>Las Vegas</strong> (always correct, random time) vs. <strong>Monte Carlo</strong> (bounded time, error \(\le\delta\), one- or two-sided).</li>
+      <li>Expected time = \(\max_x\mathbb E_r[T(x,r)]\): worst-case input, our coins. Valid against <strong>oblivious</strong> adversaries only.</li>
+      <li><strong>Indicators + linearity</strong>: decompose a complicated cost into 0/1 events and add their probabilities. Quicksort: \(2(n+1)H_n-4n\); quickselect: \(\le4n\).</li>
+      <li><strong>Deferred decisions</strong> and <strong>amplification</strong>: error \(2^{-k}\) costs \(k\) independent runs.</li>
+      <li>Tails matter: high-probability bounds, not just expectations.</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L04 (Sat 17 Oct)</span>
+      Hashing and randomized data structures: universal hashing (a random function beats the adversary), perfect hashing (worst-case \(O(1)\) lookups), skip lists (expected \(O(\log n)\), <em>not</em> worst case).
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> CLRS 4e Ch. 11; Pugh 1990. <strong>Due 17 Oct:</strong> PS1 and project M1 (team + topic).</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>

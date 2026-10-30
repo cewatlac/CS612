@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CS612 L08 — Greedy Algorithms, Exchange Arguments &amp; Matroids (student slides)</title>
+<link rel="stylesheet" href="../_shared/katex/katex.min.css">
+<link rel="stylesheet" href="../_shared/styles.css">
+<link rel="stylesheet" href="../_shared/print.css">
+</head>
+<body data-student data-course="CS612 Advanced Algorithms" data-lecture="Lecture 08 · Sat 14 Nov 2026">
+
+<section class="slide title">
+  <span class="kicker">CS612 · Advanced Algorithms · MSc · Fall 2026</span>
+  <h1>Lecture 08<br>Greedy Algorithms, Exchange Arguments &amp; Matroids</h1>
+  <p>Greedy algorithms are easy to write and easy to get wrong. Today is about the proofs, and about the structure that makes greedy work.</p>
+  <div class="meta">Saturday 14 November 2026 · 3 hours<br>Midterm (L01–L07) today in a separate exam slot · Project M3 due today</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Motivating problem: which greedy rule?</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Jobs with processing times \(t_j\) and deadlines \(d_j\), one machine, no idle time needed. Lateness \(\ell_j=\max(0,C_j-d_j)\). Minimise the <strong>maximum lateness</strong> \(L=\max_j\ell_j\).</p>
+      <p>Three plausible rules:</p>
+      <ol>
+        <li>Shortest processing time first</li>
+        <li>Smallest slack \(d_j-t_j\) first</li>
+        <li>Earliest deadline first (EDF)</li>
+      </ol>
+    </div>
+    <div class="box q small"><span class="label">Pairs · 5 min</span>
+      Two of the three rules are wrong. Find a counterexample with <strong>two jobs</strong> for each wrong rule. Then: what would it take to <em>prove</em> the third one?</div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block A · 00:10–01:00</span>
+  <h1>Proving greedy algorithms correct</h1>
+  <p>The template · staying ahead · exchange · counterexamples</p>
+</section>
+
+<section class="slide">
+  <h2>The greedy template</h2>
+  <div class="cols">
+    <div class="small">
+      <p>A greedy algorithm makes one irrevocable choice at a time, based on a local rule. To prove it optimal, show:</p>
+      <ol>
+        <li><strong>Greedy choice is safe:</strong> some optimal solution contains the first greedy choice.</li>
+        <li><strong>Optimal substructure:</strong> after fixing that choice, the rest of an optimal solution is optimal for the remaining subproblem, which has the same form.</li>
+        <li><strong>Induction</strong> on the size of the problem glues these together.</li>
+      </ol>
+      <p>Two common proof styles:</p>
+      <ul>
+        <li><strong>Greedy stays ahead:</strong> by induction, greedy's partial solution is at least as good as any other solution's after each step.</li>
+        <li><strong>Exchange:</strong> transform any optimal solution step by step into greedy's without making it worse.</li>
+      </ul>
+    </div>
+    <div class="box warn small"><span class="label">What is not a proof</span>
+      <ul>
+        <li>"It takes the best option at each step"</li>
+        <li>"It worked on all my test cases"</li>
+        <li>"It is intuitive"</li>
+      </ul>
+      <p>Every rule in the motivating problem "takes the best option" by <em>its own</em> measure.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Greedy stays ahead: interval scheduling</h2>
+  <div class="small">
+    <p>Greedy (earliest finish) picks \(g_1,\dots,g_k\); any optimal solution picks \(o_1,\dots,o_m\). Both lists are sorted by finish time.</p>
+    <div class="box thm"><span class="label">Lemma (stays ahead)</span>For all \(r\le k\): \(f(g_r)\le f(o_r)\).</div>
+    <div class="box proof"><span class="label">Proof</span>\(r=1\): greedy picks the earliest finish overall. Step: \(o_r\) starts after \(o_{r-1}\) finishes, and \(f(o_{r-1})\ge f(g_{r-1})\) by the hypothesis. So \(o_r\) is compatible with \(g_1..g_{r-1}\) and was available to greedy, which picked the earliest-finishing available interval: \(f(g_r)\le f(o_r)\).</div>
+    <div class="box proof"><span class="label">Optimality</span>Suppose \(m&gt;k\). Then \(o_{k+1}\) starts after \(f(o_k)\ge f(g_k)\), so it is compatible with all of greedy's picks, and greedy would not have stopped. So \(m\le k\).</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exchange argument: EDF minimises maximum lateness</h2>
+  <div class="small">
+    <p>An <strong>inversion</strong>: jobs \(i,j\) with \(d_i&lt;d_j\) but \(j\) scheduled before \(i\). EDF has no inversions (ties in any order) and no idle time.</p>
+    <div class="cols">
+      <div class="box thm"><span class="label">Facts</span>
+        <ol>
+          <li>All schedules without inversions or idle time have the same \(L\): they differ only in the order of equal-deadline jobs.</li>
+          <li>A schedule with an inversion has an <strong>adjacent</strong> inversion.</li>
+          <li>Swapping an adjacent inversion does not increase \(L\), and it reduces the number of inversions by 1.</li>
+        </ol>
+      </div>
+      <div class="box proof"><span class="label">Proof of (3)</span>Adjacent \(j,i\) with \(d_i&lt;d_j\), \(j\) first. After the swap, the other jobs are unchanged and \(i\) finishes earlier. \(j\) now finishes at \(C'_j=C_i\) (the old finish time of \(i\)), so
+        \[\ell'_j=C_i-d_j\le C_i-d_i=\ell_i\le L.\]
+        So the new maximum is \(\le L\).</div>
+    </div>
+    <p><strong>Conclusion:</strong> take an optimal schedule and remove idle time (this never hurts). Swap adjacent inversions until none remain (finitely many steps, since the inversion count decreases). The result has the same \(L\) as EDF and \(L\le\) optimal.</p>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Counterexamples: a library of failures</h2>
+  <table class="small">
+    <tr><th>Problem</th><th>Plausible greedy</th><th>Smallest counterexample</th></tr>
+    <tr><td>Interval scheduling (count)</td><td>shortest first</td><td>\([0,5),[4,7),[6,11)\)</td></tr>
+    <tr><td>Interval scheduling (count)</td><td>earliest start</td><td>\([0,10),[1,2),[3,4)\)</td></tr>
+    <tr><td>Weighted intervals</td><td>earliest finish</td><td>\([0,10)\) value 10 vs. \([0,1),[1,2)\) values 1, 1</td></tr>
+    <tr><td>Coin change</td><td>largest coin</td><td>\(\{1,3,4\}\), amount 6</td></tr>
+    <tr><td>0/1 knapsack</td><td>best value/weight</td><td>\(W=10\): \((6,7),(5,5),(5,5)\)</td></tr>
+    <tr><td>Max lateness</td><td>shortest job / least slack</td><td>(motivating problem)</td></tr>
+    <tr><td>Set cover</td><td>largest set first</td><td>not optimal, but within \(H_n\) (L14)</td></tr>
+  </table>
+  <div class="box key small" style="margin-top:12px">Method: find what the rule <strong>ignores</strong> (length, value, the future's structure) and build an instance where that ignored quantity decides the answer.</div>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise A: prove or refute</h2>
+  <ol class="small">
+    <li><strong>Fractional knapsack:</strong> take items in decreasing value/weight order, the last one fractionally. Prove optimality with an exchange argument.</li>
+    <li><strong>Refuelling:</strong> a car with range \(R\) drives along a road with fuel stations at positions \(x_1&lt;\dots&lt;x_n\) and must reach \(D\). Greedy: refuel only when the next station is out of range, at the farthest reachable station. Prove it minimises the number of stops (staying ahead).</li>
+    <li><strong>Covering points:</strong> cover points \(x_1&lt;\dots&lt;x_n\) on a line with the fewest closed intervals of length 1. Greedy: place \([p,p+1]\) at the leftmost uncovered point \(p\), and repeat. Optimal? Prove or refute.</li>
+    <li><strong>Graph colouring:</strong> colour vertices in order of decreasing degree with the smallest available colour. Optimal?</li>
+  </ol>
+  <p class="small muted">Pairs · 10 min</p>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block B · 01:10–02:00</span>
+  <h1>Huffman coding and matroids</h1>
+  <p>A greedy algorithm with a subtle proof · the structure behind greedy</p>
+</section>
+
+<section class="slide">
+  <h2>Huffman coding</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Symbols with frequencies \(f(c)\). A <strong>prefix code</strong> is a binary tree with symbols at the leaves. Its cost is \(B(T)=\sum_c f(c)\,d_T(c)\) (the total encoded length).</p>
+      <pre class="pseudo ln sm">HUFFMAN(C)
+  Q = min-priority queue of the symbols, by f
+  repeat |C| − 1 times
+      x = EXTRACT-MIN(Q) ; y = EXTRACT-MIN(Q)
+      z = new node with children x, y
+      f(z) = f(x) + f(y) ; INSERT(Q, z)
+  return the remaining node</pre>
+      <p>\(O(n\log n)\) with a binary heap. \(O(n)\) if the frequencies are already sorted (two queues).</p>
+    </div>
+    <div class="stack small">
+      <div class="box thm"><span class="label">Lemma 1 (safe choice)</span>If \(x,y\) have the two smallest frequencies, some optimal tree has \(x,y\) as sibling leaves at maximum depth.</div>
+      <div class="box thm"><span class="label">Lemma 2 (substructure)</span>Replace \(x,y\) by a new symbol \(z\) with \(f(z)=f(x)+f(y)\). If \(T'\) is optimal for the new alphabet, then expanding \(z\) into \(x,y\) gives an optimal \(T\). Here \(B(T)=B(T')+f(x)+f(y)\).</div>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Huffman: the proofs</h2>
+  <div class="small">
+    <div class="box proof"><span class="label">Lemma 1 (exchange)</span>Take any optimal tree \(T\). A full binary tree has two sibling leaves \(a,b\) at maximum depth. W.l.o.g. \(f(x)\le f(a)\) and \(f(y)\le f(b)\). Swap \(x\) with \(a\):
+      \[B(T)-B(T')=\big(f(a)-f(x)\big)\big(d_T(a)-d_T(x)\big)\ge0,\]
+      since both factors are \(\ge0\). So the swap does not increase the cost. Swap \(y\) with \(b\) likewise. The result is optimal and has \(x,y\) as siblings at maximum depth.</div>
+    <div class="box proof"><span class="label">Lemma 2 (reduction)</span>For any tree \(T\) with \(x,y\) as siblings, collapsing them into \(z\) gives \(T'\) with \(B(T)=B(T')+f(x)+f(y)\), since \(x,y\) are one level deeper than \(z\). If \(T\) (from \(T'\) optimal) were not optimal, take an optimal \(T^\ast\) with \(x,y\) as siblings (Lemma 1) and collapse it: \(B(T^{\ast\prime})=B(T^\ast)-f(x)-f(y)&lt;B(T)-f(x)-f(y)=B(T')\), which contradicts the optimality of \(T'\).</div>
+    <p><strong>Theorem</strong> (induction on \(|C|\)): Huffman produces an optimal prefix code.</p>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>The MST connection (preview of L09)</h2>
+  <div class="cols">
+    <div class="small">
+      <p><strong>Kruskal</strong> is greedy: scan the edges by increasing weight and add each edge that does not create a cycle.</p>
+      <div class="box thm"><span class="label">Cut property</span>For any cut \((S,V\setminus S)\), a lightest edge crossing the cut belongs to some MST.</div>
+      <div class="box proof"><span class="label">Exchange proof</span>Let \(e\) be the lightest crossing edge and \(T\) an MST without \(e\). \(T+e\) has a cycle, which crosses the cut at another edge \(e'\), with \(w(e')\ge w(e)\). \(T+e-e'\) is a spanning tree of weight \(\le w(T)\).</div>
+    </div>
+    <div class="box key small"><span class="label">A pattern</span>
+      <p>Interval scheduling, EDF, Huffman, MST: each proof exchanges one element of an optimal solution for greedy's choice.</p>
+      <p><strong>Question:</strong> is there a single structure that explains <em>why</em> this exchange always works for some problems (MST), and not for others (knapsack)?</p>
+      <p>Yes: <strong>matroids</strong>.</p>
+    </div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>Matroids</h2>
+  <div class="cols">
+    <div class="small">
+      <div class="box defn"><span class="label">Definition</span>A matroid \(M=(S,\mathcal I)\): a finite set \(S\) and a family \(\mathcal I\) of <em>independent</em> subsets with
+        <ol>
+          <li>\(\emptyset\in\mathcal I\);</li>
+          <li><strong>hereditary:</strong> \(B\in\mathcal I,\ A\subseteq B\Rightarrow A\in\mathcal I\);</li>
+          <li><strong>exchange:</strong> \(A,B\in\mathcal I,\ |A|&lt;|B|\Rightarrow\exists x\in B\setminus A:\ A\cup\{x\}\in\mathcal I\).</li>
+        </ol>
+      </div>
+      <p>A consequence: all maximal independent sets (<strong>bases</strong>) have the same size.</p>
+    </div>
+    <table class="small">
+      <tr><th>Example</th><th>Independent sets</th></tr>
+      <tr><td>Uniform \(U_{k,n}\)</td><td>subsets of size \(\le k\)</td></tr>
+      <tr><td><strong>Graphic</strong></td><td>edge sets that contain no cycle (forests)</td></tr>
+      <tr><td>Linear</td><td>linearly independent sets of vectors</td></tr>
+      <tr><td>Partition</td><td>at most \(k_i\) elements from block \(i\)</td></tr>
+      <tr><td>Scheduling (next slides)</td><td>sets of unit jobs that can all meet their deadlines</td></tr>
+      <tr class="hl"><td>Not a matroid</td><td>knapsack-feasible sets; matchings in general graphs</td></tr>
+    </table>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>The greedy theorem (Rado 1957, Edmonds 1971)</h2>
+  <div class="small">
+    <pre class="pseudo sm">GREEDY(S, I, w)
+  A = ∅
+  for x ∈ S in order of decreasing w(x)      ▷ only positive weights matter
+      if A ∪ {x} ∈ I:  A = A ∪ {x}
+  return A</pre>
+    <div class="box thm"><span class="label">Theorem</span>If \((S,\mathcal I)\) is a matroid, GREEDY returns a maximum-weight independent set for <strong>every</strong> weight function \(w\ge0\). Conversely, if \((S,\mathcal I)\) is hereditary and GREEDY is optimal for every \(w\), then \((S,\mathcal I)\) is a matroid.</div>
+    <div class="box proof"><span class="label">Proof (matroid ⇒ optimal)</span>Let \(G=\{g_1,g_2,\dots\}\) (in greedy order) and let \(O=\{o_1,o_2,\dots\}\) be optimal, sorted by decreasing weight. We may assume both are bases, so \(|G|=|O|\). Claim: \(w(g_i)\ge w(o_i)\) for all \(i\). If not, take the first \(i\) with \(w(g_i)&lt;w(o_i)\). Apply exchange to \(A=\{g_1..g_{i-1}\}\) and \(B=\{o_1..o_i\}\): some \(o_j\) (\(j\le i\)) extends \(A\), with \(w(o_j)\ge w(o_i)&gt;w(g_i)\). Greedy would have considered \(o_j\) before \(g_i\) and taken it (hereditary: it is still addable at that earlier time). A contradiction. So \(w(G)\ge w(O)\).</div>
+  </div>
+  
+</section>
+
+<section class="slide">
+  <h2>A scheduling matroid: unit jobs with deadlines</h2>
+  <div class="cols">
+    <div class="small">
+      <p>Unit-time jobs \(j\) with deadlines \(d_j\) and penalties \(p_j\) (paid if late). Minimise the total penalty = <strong>maximise the total penalty of on-time jobs</strong>.</p>
+      <p>Call a set \(A\) of jobs <strong>independent</strong> if all of \(A\) can finish by their deadlines.</p>
+      <div class="box thm"><span class="label">Lemma</span>\(A\) is independent iff for every \(t\): \(N_t(A)=|\{j\in A: d_j\le t\}|\le t\).</div>
+      <p>This is a matroid (exchange: if \(|B|&gt;|A|\), add the job of \(B\setminus A\) with the latest… see the exercise sheet). So <strong>greedy by decreasing penalty</strong>, keeping independence, is optimal. Schedule the chosen jobs in EDF order.</p>
+    </div>
+    <div class="box key small"><span class="label">Why it matters</span>
+      <p>Recognising a matroid gives you, for free: (1) an optimal greedy algorithm, (2) its correctness proof, (3) optimality for <em>every</em> weight function (robust to changing penalties).</p>
+      <p>Checking independence is \(O(n)\) per test with counters, so \(O(n^2)\) total, or \(O(n\log n)\) with DSU on time slots (L09 connection).</p>
+    </div>
+  </div>
+  
+</section>
+
+
+<section class="slide divider">
+  <span class="kicker">Block C · 02:10–02:55</span>
+  <h1>Workshop</h1>
+  <p>Matroid or not? · design with proof · find the gap</p>
+</section>
+
+<section class="slide">
+  <h2>Exercise C1: matroid or not?</h2>
+  <p class="small">For each \((S,\mathcal I)\): is it a matroid? Prove exchange, or give a counterexample to it. If it is a matroid, state what GREEDY computes.</p>
+  <ol class="small">
+    <li>\(S\) = the edges of a graph; \(\mathcal I\) = edge sets in which every vertex has degree \(\le1\) (matchings).</li>
+    <li>\(S\) = the columns of a matrix over \(\mathbb R\); \(\mathcal I\) = linearly independent column sets.</li>
+    <li>\(S\) = the edges of a directed graph; \(\mathcal I\) = edge sets in which every vertex has in-degree \(\le1\).</li>
+    <li>\(S\) = items with sizes; \(\mathcal I\) = sets of total size \(\le W\).</li>
+    <li>\(S\) = the edges of a graph; \(\mathcal I\) = edge sets whose removal leaves the graph connected (for a connected graph).</li>
+  </ol>
+  <p class="small muted">Groups · 12 min</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Exercise C2: find the gap in the proof</h2>
+  <div class="small">
+    <p><strong>Claim.</strong> "To minimise the number of coins for amount \(T\) with denominations \(1=c_1&lt;c_2&lt;\dots&lt;c_k\), greedy (the largest coin first) is optimal."</p>
+    <div class="box plain"><span class="label">Student proof</span>"Let \(c\) be the largest coin \(\le T\). Some optimal solution uses \(c\): if an optimal solution \(O\) does not use \(c\), its coins smaller than \(c\) sum to at least \(c\), so we can replace some of them by one \(c\), which does not increase the count. Then recurse on \(T-c\)."</div>
+    <ol>
+      <li>Find the false step. Give a counterexample to the claim.</li>
+      <li>For which denomination systems is the step true? Prove it for \(\{1,5,10,25\}\) or \(\{1,2,4,8,\dots\}\).</li>
+      <li>What would the corresponding exchange argument need, and why does it hold for powers of 2?</li>
+    </ol>
+  </div>
+  <p class="small muted">Groups · 10 min</p>
+  
+</section>
+
+<section class="slide">
+  <h2>Synthesis</h2>
+  <div class="cols small">
+    <ol>
+      <li>Greedy = safe first choice + optimal substructure + induction. Prove it by <strong>staying ahead</strong> or by <strong>exchange</strong>.</li>
+      <li>Try to break a rule before proving it: find the quantity it ignores.</li>
+      <li>EDF (inversions), Huffman (exchange + reduction), MST (cut property): the same pattern.</li>
+      <li><strong>Matroids</strong> explain the pattern: greedy is optimal for every weight function exactly when the feasible sets form a matroid.</li>
+      <li>Not matroids: knapsack, matchings. They need DP (L07) or flow (L12).</li>
+    </ol>
+    <div class="box key">
+      <span class="label">Next week · L09 (Sat 21 Nov)</span>
+      MSTs and DSU: cut and cycle properties, Kruskal / Prim / Borůvka compared by density, and the amortized \(O(\alpha(n))\) bound for union–find.
+      <p class="xsmall" style="margin-top:8px"><strong>Read:</strong> CLRS 4e Ch. 19, 21; KT 4.5–4.6. <strong>PS3</strong> released next week.</p>
+    </div>
+  </div>
+  
+</section>
+
+<script src="../_shared/katex/katex.min.js"></script>
+<script src="../_shared/katex/auto-render.min.js"></script>
+<script src="../_shared/slides.js"></script>
+</body>
+</html>
