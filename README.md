@@ -1,31 +1,48 @@
-# CS612 Weekly Lectures — student materials
+# CS612 — Advanced Algorithms | GitHub Pages Course Library
 
-Each `Lecture_NN/` folder contains **only student-safe files**:
+A ready-to-upload website for **CS612 Advanced Algorithms, MSc, Fall 2026**.
 
-| File | What it is |
-|---|---|
-| `Lecture_NN_Slides.pdf` | The slides, no instructor notes. **This is what goes to Google Classroom.** |
-| `Lecture_NN_Slides.html` | The same slides as an offline HTML deck (needs the `_shared/` folder next to it) |
-| `Lecture_NN_In-Class_Exercises.md` / `.pdf` | Exercise sheet used in Block B/C |
-| `Student_Resources/` | Code or data used in class (where applicable) |
+### What students can access
 
-The slide files are **generated** from the instructor sources in `Instructor_Only/Lectures/` by `python tools/build.py lectures`, which strips every instructor note and refuses to write a file if note content leaks through. Do not edit them by hand.
+- **14 weekly lectures** with **282 interactive slides**.
+- **14 PDFs of slide decks** and **14 PDFs of in-class exercise sheets**.
+- **14 Markdown exercise sheets** and **12 original C++ files**.
+- Searchable lecture list, topical filters, direct links to slide PDFs and exercises, a previewer for Markdown/C++, and download links for individual lecture packages.
 
-| L | Date | Lecture |
-|---:|---|---|
-| 01 | Sat 26 Sep 2026 | Advanced Algorithm Analysis, Correctness & Lower Bounds |
-| 02 | Sat 03 Oct 2026 | Divide-and-Conquer, Recurrences & Selection |
-| 03 | Sat 10 Oct 2026 | Randomized Algorithms & Probabilistic Analysis |
-| 04 | Sat 17 Oct 2026 | Hashing & Randomized Data Structures |
-| 05 | Sat 24 Oct 2026 | Augmented Data Structures & Amortized Analysis |
-| 06 | Sat 31 Oct 2026 | Dynamic Programming I — State-Space Design |
-| 07 | Sat 07 Nov 2026 | Dynamic Programming II — Optimization & Pseudo-Polynomial Algorithms |
-| 08 | Sat 14 Nov 2026 | Greedy Algorithms, Exchange Arguments & Matroids |
-| 09 | Sat 21 Nov 2026 | Minimum Spanning Trees, DSU & Structural Graph Reasoning |
-| 10 | Sat 28 Nov 2026 | Shortest Paths as an Algorithm-Selection Problem |
-| 11 | Sat 05 Dec 2026 | String Algorithms & Multi-Pattern Matching |
-| 12 | Sat 12 Dec 2026 | Network Flow, Min-Cut & Matching |
-| 13 | Sat 19 Dec 2026 | NP-Completeness, Reductions & Exact Exponential Algorithms |
-| 14 | Sat 26 Dec 2026 | Approximation Algorithms, Algorithmic Trade-offs & Course Synthesis |
+**The supplied course content is preserved:** all 28 PDFs, all Markdown exercise files and C++ resources are byte-for-byte copied from the original `02_Weekly_Lectures.zip`. The interactive HTML slides retain their lecture content; only a back-to-library button and a web-hosted KaTeX stylesheet reference were added. The original HTML files had no instructor-notes sections. **Review all teaching material yourself before making the repository public.**
 
-`_shared/` holds the slide engine (`slides.js`, `styles.css`, `print.css`) and a vendored copy of KaTeX 0.16.22 (MIT licence, `katex/LICENSE`) so that mathematics renders without internet access.
+### Install in your existing GitHub repository
+
+Your previously shared repository is `https://github.com/cewatlac/CS612`.
+
+1. Download and extract `CS612_GitHub_Pages_Ready.zip` locally.
+2. Put **all the contents**, including `index.html`, `viewer.html`, `assets/`, `Lecture_01/` to `Lecture_14/`, `_shared/`, `downloads/` and `.nojekyll`, at the **root of the repository**. Do **not** upload only the ZIP, and do not nest them in another `02_Weekly_Lectures/` directory.
+3. Prefer **GitHub Desktop** for uploading all files. From the repository folder, copy the extracted contents, commit, then push to `main`. Preserve any other course folders already present in your repository. In-browser uploads can be split into smaller batches (GitHub limits files per batch).
+4. Go to **Settings → Pages → Build and deployment** and select **Deploy from a branch**, **main**, **/(root)**. Save if you changed these settings.
+5. After deployment succeeds under **Actions**, the usual public URL will be **https://cewatlac.github.io/CS612/**.
+
+If the repository already has a root `index.html`, back it up or merge changes deliberately rather than overwriting it without checking.
+
+### Site layout
+
+- `index.html`: the student-facing public homepage.
+- `viewer.html`: safely previews exercise Markdown and C++ sources on a web server.
+- `assets/`: site CSS, JavaScript, metadata and favicon.
+- `Lecture_NN/`: original PDF slides and exercises, interactive HTML slides, and original student resources.
+- `_shared/`: the original interactive lecture engine (CSS/JS) and local KaTeX JS (its CSS and fonts are loaded from jsDelivr when online).
+- `downloads/`: one ZIP per lecture plus `CS612_All_Exercises_and_Code.zip` for consolidated practice materials.
+- `SOURCE_MATERIALS_README.md`: the original source archive's README.
+
+### Test the website before publishing
+
+From inside the extracted folder run:
+
+```bash
+python -m http.server 8000
+```
+
+Visit `http://localhost:8000/`. Click a lecture, a PDF shortcut, the exercise preview, and the back-to-library link. The Markdown/C++ viewer needs a server (`http://` or `https://`) rather than `file://`. Mathematical fonts in the HTML slides need an internet connection because KaTeX CSS is served from jsDelivr; PDFs work offline.
+
+### How to update next week
+
+Upload new or revised files in the correct `Lecture_NN/` directory. If you add files or rename them, update `assets/data.js` so all website links stay accurate. Rebuild any corresponding ZIPs in `downloads/` if the source files change. Do not add instructor-only material to a public repository.
